@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alpha-Beta Decision Intelligence Terminal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {} }
+    }
+  </script>
+  <style>
+    body { background: #09090b; color: #fafafa; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
+const { LineChart, Line, BarChart, Bar, ScatterChart, Scatter, ComposedChart, Area,
+        XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } = Recharts;
+
+// ─── Synthetic data generation ───────────────────────────────────────────────
+
+function seededRandom(seed) {
+  let s = seed;
+  return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
+}
+
+function generatePriceData(ticker, n = 200) {
+  const rng = seededRandom(ticker.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
+  const base = 50 + rng() * 300;
+  let price = base;
+  const data = [];
+  for (let i = 0; i < n; i++) {
+    const ret = (rng() - 0.5) * 0.04;
+    price *= (1 + ret);
+    const h = price * (1 + rng() * 0.015);
+    const l = price * (1 - rng() * 0.015);
+    data.push({ i, open: price * (1 + (rng()-0.5)*0.005), high: h, low: l, close: price, volume: Math.floor(rng()*5000000) });
+  }
+  return data;
+}
+
+function computeRSI(closes, period) {
+  const rsi = new Array(closes.length).fill(null);
+  if (closes.length < period + 1) return rsi;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i-1];
+    if (d > 0) avgGain += d; else avgLoss -= d;
+  }
+  avgGain /= period; avgLoss /= period;
+  rsi[period] = avgLoss === 0 ? 100 : 100 - 100/(1 + avgGain/avgLoss);
+  for (let i = period+1; i < closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    avgGain = (avgGain * (period-1) + Math.max(d,0)) / period;
+    avgLoss = (avgLoss * (period-1) + Math.max(-d,0)) / period;
+    rsi[i] = avgLoss === 0 ? 100 : 100 - 100/(1 + avgGain/avgLoss);
+  }
+  return rsi;
+}
+
+function computeMACD(closes) {
+  const ema = (arr, span) => {
+    const k = 2/(span+1); const out = [arr[0]];
+    for (let i=1;i<arr.length;i++) out.push(arr[i]*k + out[i-1]*(1-k));
+    return out;
+  };
+  const e12 = ema(closes, 12), e26 = ema(closes, 26);
+  const macdLine = e12.map((v,i) => v - e26[i]);
+  const sig = ema(macdLine, 9);
+  const hist = macdLine.map((v,i) => v - sig[i]);
+  // Z-score over rolling 200
+  const zscores = hist.map((v, i) => {
+    if (i < 50) return 0;
+    const window = hist.slice(Math.max(0, i-200), i+1);
+    const mean = window.reduce((a,b)=>a+b,0)/window.length;
+    const std = Math.sqrt(window.reduce((a,b)=>a+(b-mean)**2,0)/window.length) || 1;
+    return (v - mean) / std;
+  });
+  return { macdLine, signal: sig, hist, zscores };
+}
+
+function bollingerLower(closes, period=20, mult=2) {
+  return closes.map((_, i) => {
+    if (i < period) return null;
+    const slice = closes.slice(i-period, i);
+    const mean = slice.reduce((a,b)=>a+b,0)/period;
+    const std = Math.sqrt(slice.reduce((a,b)=>a+(b-mean)**2,0)/period);
+    return mean - mult * std;
+  });
+}
+
+const SP100 = ["AAPL","ABBV","ABT","ACN","ADBE","AIG","AMD","AMGN","AMZN","AVGO",
+"AXP","BA","BAC","BK","BKNG","BLK","BMY","C","CAT","CHTR",
+"CL","CMCSA","COF","COP","COST","CRM","CSCO","CVS","CVX","DE",
+"DHR","DIS","DOW","DUK","EMR","EXC","F","FDX","GD","GE",
+"GILD","GM","GOOG","GS","HD","HON","IBM","INTC","JNJ","JPM"];
+
+function generateSignals() {
+  return SP100.map(ticker => {
+    const data = generatePriceData(ticker, 300);
+    const closes = data.map(d => d.close);
+    const rsi5 = computeRSI(closes, 5);
+    const macd = computeMACD(closes);
+    const last = data.length - 1;
+    const r5 = rsi5[last] || 50;
+    const z = macd.zscores[last] || 0;
+    let direction = "neutral", score = 15;
+    if (z < -2) { direction = "buy"; score += 25; }
+    else if (z > 2) { direction = "sell"; score += 20; }
+    if (r5 < 30) score += 15;
+    if (r5 < 25) { direction = "buy"; score += 10; }
+    return { ticker, price: closes[last], signal_direction: direction, probability_score: Math.min(score, 100), rsi_5: r5, macd_zscore: z };
+  }).sort((a,b) => b.probability_score - a.probability_score);
+}
+
+function generateThesis(ticker) {
+  const data = generatePriceData(ticker, 300);
+  const closes = data.map(d => d.close);
+  const rsi5 = computeRSI(closes, 5);
+  const rsi9 = computeRSI(closes, 9);
+  const rsi14 = computeRSI(closes, 14);
+  const macd = computeMACD(closes);
+  const bb = bollingerLower(closes);
+  const last = closes.length - 1;
+  const z = macd.zscores[last];
+  const r5 = rsi5[last]||50, r9 = rsi9[last]||50, r14 = rsi14[last]||50;
+  const active = r5 < 30 && r9 < 35 && closes[last] < (bb[last]||Infinity);
+  const phase = active ? 3 : r5 < 30 ? 1 : 0;
+  const regime = z < -2 ? "statistical_washout" : z > 2 ? "exhaustion" : "neutral";
+  const direction = regime === "statistical_washout" || active ? "buy" : regime === "exhaustion" ? "sell" : "neutral";
+  let prob = 15;
+  if (active) prob += 30;
+  if (Math.abs(z) > 2) prob += 25;
+  const sma200 = closes.slice(-200).reduce((a,b)=>a+b,0)/Math.min(200, closes.length);
+  const pctVsSma = ((closes[last] - sma200) / sma200 * 100);
+  const playType = pctVsSma < -2 ? "Mean Reversion" : pctVsSma > 2 ? "Trend Following" : "Range Bound";
+
+  const chartData = data.slice(-200).map((d, idx) => {
+    const gi = data.length - 200 + idx;
+    return {
+      time: `Bar ${idx}`,
+      close: +d.close.toFixed(2), high: +d.high.toFixed(2), low: +d.low.toFixed(2),
+      bb_lower: bb[gi] ? +bb[gi].toFixed(2) : null,
+      rsi_5: rsi5[gi] ? +rsi5[gi].toFixed(2) : null,
+      rsi_9: rsi9[gi] ? +rsi9[gi].toFixed(2) : null,
+      rsi_14: rsi14[gi] ? +rsi14[gi].toFixed(2) : null,
+      macd_hist: +macd.hist[gi].toFixed(4),
+      hist_zscore: +macd.zscores[gi].toFixed(3),
+    };
+  });
+
+  return {
+    ticker, price: closes[last], signal_direction: direction, probability_score: Math.min(prob, 100),
+    why_now: active
+      ? `RSI Alignment detected (Phase 3 active). Historically, this setup has a 68% reversal rate for ${ticker} over the last 3 years (14 occurrences, avg gain 3.2%).`
+      : regime === "statistical_washout"
+      ? `MACD-Hist Z-Score at ${z.toFixed(1)} — statistical washout territory. Historical reversal rate: 72% over 3 years.`
+      : `No strong directional signal detected at current levels for ${ticker}.`,
+    macro_tailwind: "VIX is currently 22.4 (dropping from 27.1 — lower high confirmed). Regime: extreme_fear_peaking. VIX spike peaking — Index buys (SPY/IWM) favoured.",
+    risk_summary: `Current price is ${Math.abs(pctVsSma).toFixed(1)}% ${pctVsSma < 0 ? "below" : "above"} SMA(200). This is a '${playType}' play. Historical max drawdown: 18.4%. Suggested stop-loss: 22.1%.`,
+    rsi: { rsi_5: +r5.toFixed(2), rsi_9: +r9.toFixed(2), rsi_14: +r14.toFixed(2), phase, active },
+    macd: { zscore: +z.toFixed(3), regime, macd_hist: +macd.hist[last].toFixed(4) },
+    vix: { current_vix: 22.4, vix_rsi2: 91.3, extreme_fear: true, lower_high_confirmed: true, regime: "extreme_fear_peaking", recommendation: "VIX spike peaking — Index buys favoured." },
+    backtest: { reversal_pct: 68, avg_gain_pct: 3.2, sample_count: 14 },
+    risk: { sma_200: +sma200.toFixed(2), price_vs_sma_200_pct: +pctVsSma.toFixed(2), play_type: playType, max_drawdown_pct: 18.4, suggested_stop_loss_pct: 22.1 },
+    chartData,
+  };
+}
+
+// Efficient Frontier mock
+function generateFrontier() {
+  const points = [];
+  for (let i = 0; i < 20; i++) {
+    const vol = 8 + i * 1.5;
+    const ret = 3 + Math.sqrt(i) * 3.5 - (i > 14 ? (i-14)*0.5 : 0);
+    points.push({ x: +vol.toFixed(2), y: +ret.toFixed(2) });
+  }
+  return points;
+}
+
+// ─── UI Components ───────────────────────────────────────────────────────────
+
+function Badge({ variant = "neutral", children }) {
+  const colors = {
+    buy: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    sell: "bg-red-500/20 text-red-400 border-red-500/30",
+    neutral: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+    warning: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    info: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  };
+  return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${colors[variant] || colors.neutral}`}>{children}</span>;
+}
+
+function VIXBanner({ vix }) {
+  const bg = vix.extreme_fear ? "bg-red-950/50 border-red-800/50" : "bg-zinc-900 border-zinc-800";
+  return (
+    <div className={`rounded-lg border px-4 py-2 flex items-center justify-between ${bg}`}>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-400">VIX</span>
+          <span className="font-mono font-bold text-lg">{vix.current_vix}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-400">RSI(2)</span>
+          <span className="font-mono">{vix.vix_rsi2}</span>
+        </div>
+        <Badge variant={vix.extreme_fear ? (vix.lower_high_confirmed ? "buy" : "sell") : "neutral"}>
+          {vix.regime.replace(/_/g, ' ').toUpperCase()}
+        </Badge>
+        {vix.lower_high_confirmed && <Badge variant="buy">Lower High Confirmed</Badge>}
+      </div>
+      <div className="text-xs text-zinc-400 max-w-md text-right">{vix.recommendation}</div>
+    </div>
+  );
+}
+
+function SignalGrid({ signals, onSelect, selectedTicker }) {
+  const probColor = (s) => s >= 60 ? "text-emerald-400" : s >= 35 ? "text-amber-400" : "text-zinc-500";
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow">
+      <div className="p-4 pb-2 border-b border-zinc-800">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Signal Grid</h2>
+          <span className="text-xs text-zinc-500">S&P 100 · Top 50</span>
+        </div>
+      </div>
+      <div className="overflow-auto" style={{ maxHeight: "calc(100vh - 260px)" }}>
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-zinc-950 z-10">
+            <tr className="border-b border-zinc-800 text-zinc-400">
+              <th className="text-left py-2 px-3 font-medium">Ticker</th>
+              <th className="text-right py-2 px-3 font-medium">Price</th>
+              <th className="text-center py-2 px-3 font-medium">Signal</th>
+              <th className="text-right py-2 px-3 font-medium">Prob %</th>
+              <th className="text-right py-2 px-3 font-medium">RSI(5)</th>
+              <th className="text-right py-2 px-3 font-medium">MACD-Z</th>
+            </tr>
+          </thead>
+          <tbody>
+            {signals.map(s => (
+              <tr key={s.ticker} onClick={() => onSelect(s.ticker)}
+                className={`border-b border-zinc-800/50 cursor-pointer transition-colors hover:bg-zinc-900 ${selectedTicker === s.ticker ? "bg-zinc-800/60" : ""}`}>
+                <td className="py-2 px-3 font-mono font-semibold">{s.ticker}</td>
+                <td className="text-right py-2 px-3 font-mono">${s.price.toFixed(2)}</td>
+                <td className="text-center py-2 px-3">
+                  <Badge variant={s.signal_direction === "buy" ? "buy" : s.signal_direction === "sell" ? "sell" : "neutral"}>
+                    {s.signal_direction.toUpperCase()}
+                  </Badge>
+                </td>
+                <td className={`text-right py-2 px-3 font-mono font-semibold ${probColor(s.probability_score)}`}>{s.probability_score.toFixed(1)}</td>
+                <td className="text-right py-2 px-3 font-mono">{s.rsi_5.toFixed(1)}</td>
+                <td className={`text-right py-2 px-3 font-mono ${s.macd_zscore < -2 ? "text-emerald-400" : s.macd_zscore > 2 ? "text-red-400" : "text-zinc-400"}`}>{s.macd_zscore.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ThesisCard({ thesis }) {
+  const t = thesis;
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow">
+      <div className="p-5 pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xl font-mono font-bold">{t.ticker}</span>
+            <span className="text-2xl font-mono font-bold">${t.price.toFixed(2)}</span>
+            <Badge variant={t.signal_direction === "buy" ? "buy" : t.signal_direction === "sell" ? "sell" : "neutral"}>
+              {t.signal_direction.toUpperCase()}
+            </Badge>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-zinc-400">Probability</div>
+            <div className={`text-2xl font-mono font-bold ${t.probability_score >= 60 ? "text-emerald-400" : t.probability_score >= 35 ? "text-amber-400" : "text-zinc-500"}`}>
+              {t.probability_score.toFixed(1)}%
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="px-5 pb-5 space-y-4">
+        <div><h3 className="text-sm font-semibold text-emerald-400 mb-1">Why Now</h3><p className="text-sm text-zinc-300">{t.why_now}</p></div>
+        <div><h3 className="text-sm font-semibold text-blue-400 mb-1">Macro Tailwind</h3><p className="text-sm text-zinc-300">{t.macro_tailwind}</p></div>
+        <div><h3 className="text-sm font-semibold text-amber-400 mb-1">Risk</h3><p className="text-sm text-zinc-300">{t.risk_summary}</p></div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg bg-zinc-900 p-3">
+            <div className="text-xs text-zinc-400 mb-2">RSI Alignment</div>
+            <div className="space-y-1 font-mono text-sm">
+              <div className="flex justify-between"><span className="text-zinc-500">RSI(5)</span><span className={t.rsi.rsi_5 < 30 ? "text-emerald-400" : ""}>{t.rsi.rsi_5}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">RSI(9)</span><span className={t.rsi.rsi_9 < 35 ? "text-emerald-400" : ""}>{t.rsi.rsi_9}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">RSI(14)</span><span className={t.rsi.rsi_14 < 40 ? "text-emerald-400" : ""}>{t.rsi.rsi_14}</span></div>
+              <div className="pt-1 border-t border-zinc-800"><Badge variant={t.rsi.active ? "buy" : "neutral"}>Phase {t.rsi.phase}</Badge></div>
+            </div>
+          </div>
+          <div className="rounded-lg bg-zinc-900 p-3">
+            <div className="text-xs text-zinc-400 mb-2">MACD Z-Score</div>
+            <div className="space-y-1 font-mono text-sm">
+              <div className="flex justify-between"><span className="text-zinc-500">Z-Score</span><span className={t.macd.zscore < -2 ? "text-emerald-400" : t.macd.zscore > 2 ? "text-red-400" : ""}>{t.macd.zscore.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">Hist</span><span>{t.macd.macd_hist.toFixed(4)}</span></div>
+              <div className="pt-1 border-t border-zinc-800"><Badge variant={t.macd.regime==="statistical_washout"?"buy":t.macd.regime==="exhaustion"?"sell":"neutral"}>{t.macd.regime.replace(/_/g,' ')}</Badge></div>
+            </div>
+          </div>
+          <div className="rounded-lg bg-zinc-900 p-3">
+            <div className="text-xs text-zinc-400 mb-2">VIX Context</div>
+            <div className="space-y-1 font-mono text-sm">
+              <div className="flex justify-between"><span className="text-zinc-500">VIX</span><span>{t.vix.current_vix}</span></div>
+              <div className="flex justify-between"><span className="text-zinc-500">RSI(2)</span><span className={t.vix.vix_rsi2>90?"text-red-400":""}>{t.vix.vix_rsi2}</span></div>
+              <div className="pt-1 border-t border-zinc-800"><Badge variant={t.vix.extreme_fear?(t.vix.lower_high_confirmed?"buy":"sell"):"neutral"}>{t.vix.regime.replace(/_/g,' ')}</Badge></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-zinc-900 p-3 flex items-center justify-between">
+          <div>
+            <span className="text-xs text-zinc-400">Backtest</span>
+            <span className="ml-2 text-sm font-mono">{t.backtest.reversal_pct}% reversal rate</span>
+            <span className="ml-2 text-xs text-zinc-500">({t.backtest.sample_count} samples, avg +{t.backtest.avg_gain_pct}%)</span>
+          </div>
+          <div>
+            <span className="text-xs text-zinc-400">Stop-Loss</span>
+            <span className="ml-2 text-sm font-mono text-red-400">{t.risk.suggested_stop_loss_pct}%</span>
+          </div>
+        </div>
+
+        {t.signal_direction === "buy" && (
+          <button className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 transition-colors"
+            onClick={() => alert(`Quick-Trade: BUY $100 of ${t.ticker} with stop-loss at -${t.risk.suggested_stop_loss_pct}%`)}>
+            Quick-Trade $100 &middot; Stop at -{t.risk.suggested_stop_loss_pct}%
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AnalysisPane({ chartData, ticker }) {
+  const [tab, setTab] = useState("price");
+  if (!chartData || !chartData.length) return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow flex items-center justify-center h-[420px]">
+      <span className="text-zinc-500">Select a ticker to view analysis</span>
+    </div>
+  );
+  const tabs = [["price","Price + BB"],["rsi","RSI 5/9/14"],["macd","MACD Z-Score"]];
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow">
+      <div className="p-4 pb-2 flex items-center gap-4">
+        <span className="font-semibold font-mono">{ticker} Analysis</span>
+        <div className="inline-flex h-8 items-center rounded-lg bg-zinc-900 p-1">
+          {tabs.map(([k,label]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${tab === k ? "bg-zinc-800 text-zinc-50 shadow" : "text-zinc-400 hover:text-zinc-200"}`}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="p-4 pt-0 h-[340px]">
+        {tab === "price" && (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{top:10,right:10,bottom:0,left:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <XAxis dataKey="time" tick={{fontSize:9,fill:"#71717a"}} interval={40} />
+              <YAxis domain={["auto","auto"]} tick={{fontSize:10,fill:"#71717a"}} />
+              <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} labelStyle={{color:"#a1a1aa"}} />
+              <Area type="monotone" dataKey="bb_lower" stroke="none" fill="#3b82f6" fillOpacity={0.08} />
+              <Line type="monotone" dataKey="close" stroke="#e4e4e7" dot={false} strokeWidth={1.5} name="Close" />
+              <Line type="monotone" dataKey="bb_lower" stroke="#3b82f6" dot={false} strokeWidth={1} strokeDasharray="4 2" name="BB Lower" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+        {tab === "rsi" && (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{top:10,right:10,bottom:0,left:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <XAxis dataKey="time" tick={{fontSize:9,fill:"#71717a"}} interval={40} />
+              <YAxis domain={[0,100]} tick={{fontSize:10,fill:"#71717a"}} />
+              <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} labelStyle={{color:"#a1a1aa"}} />
+              <ReferenceLine y={30} stroke="#10b981" strokeDasharray="3 3" />
+              <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="rsi_5" stroke="#f59e0b" dot={false} strokeWidth={1.5} name="RSI(5)" />
+              <Line type="monotone" dataKey="rsi_9" stroke="#8b5cf6" dot={false} strokeWidth={1.5} name="RSI(9)" />
+              <Line type="monotone" dataKey="rsi_14" stroke="#06b6d4" dot={false} strokeWidth={1.5} name="RSI(14)" />
+              <Legend />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+        {tab === "macd" && (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{top:10,right:10,bottom:0,left:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <XAxis dataKey="time" tick={{fontSize:9,fill:"#71717a"}} interval={40} />
+              <YAxis tick={{fontSize:10,fill:"#71717a"}} />
+              <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} labelStyle={{color:"#a1a1aa"}} />
+              <ReferenceLine y={-2} stroke="#10b981" strokeDasharray="3 3" label={{value:"-2 SD",fill:"#10b981",fontSize:10}} />
+              <ReferenceLine y={2} stroke="#ef4444" strokeDasharray="3 3" label={{value:"+2 SD",fill:"#ef4444",fontSize:10}} />
+              <ReferenceLine y={0} stroke="#3f3f46" />
+              <Bar dataKey="macd_hist" name="MACD Hist" fill="#71717a" />
+              <Line type="monotone" dataKey="hist_zscore" stroke="#f59e0b" dot={false} strokeWidth={2} name="Z-Score" />
+              <Legend />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PortfolioVisualizer() {
+  const frontier = generateFrontier();
+  const current = { x: 14.5, y: 8.2 };
+  const tangency = { x: 12.8, y: 11.5 };
+  const suggestions = { NVDA: 8.2, AMZN: 3.1, AAPL: -4.5, INTC: -6.8 };
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow">
+      <div className="p-4 pb-2 flex items-center justify-between">
+        <span className="font-semibold">Portfolio Tangency Visualizer</span>
+        <div className="flex gap-2">
+          <Badge variant="info">Current Sharpe: 1.21</Badge>
+          <Badge variant="buy">Tangency Sharpe: 1.58</Badge>
+        </div>
+      </div>
+      <div className="p-4 pt-0 h-[340px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{top:10,right:20,bottom:10,left:10}}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <XAxis type="number" dataKey="x" name="Volatility" unit="%" tick={{fontSize:10,fill:"#71717a"}}
+              label={{value:"Risk (Volatility %)",position:"insideBottom",offset:-5,fill:"#71717a",fontSize:11}} />
+            <YAxis type="number" dataKey="y" name="Return" unit="%" tick={{fontSize:10,fill:"#71717a"}}
+              label={{value:"Return %",angle:-90,position:"insideLeft",fill:"#71717a",fontSize:11}} />
+            <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} />
+            <Scatter name="Frontier" data={frontier} fill="#3b82f6" line={{stroke:"#3b82f6",strokeWidth:2}} lineType="fitting" />
+            <Scatter name="Current" data={[current]} fill="#f59e0b" shape="diamond" />
+            <Scatter name="Tangency" data={[tangency]} fill="#10b981" shape="star" />
+            <Legend />
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="px-4 pb-4">
+        <div className="rounded-lg bg-zinc-900 p-3 space-y-2">
+          <div className="text-xs text-zinc-400 font-semibold">Rebalancing Suggestions</div>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(suggestions).map(([ticker, delta]) => (
+              <div key={ticker} className="flex justify-between text-sm font-mono">
+                <span>{ticker}</span>
+                <span className={delta > 0 ? "text-emerald-400" : "text-red-400"}>{delta > 0 ? "+" : ""}{delta.toFixed(2)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ────────────────────────────────────────────────────────────────
+
+function App() {
+  const [selectedTicker, setSelectedTicker] = useState(null);
+  const [activeTab, setActiveTab] = useState("signals");
+  const signals = useMemo(() => generateSignals(), []);
+  const thesis = useMemo(() => selectedTicker ? generateThesis(selectedTicker) : null, [selectedTicker]);
+  const vix = { current_vix: 22.4, vix_rsi2: 91.3, extreme_fear: true, lower_high_confirmed: true, regime: "extreme_fear_peaking", recommendation: "VIX spike peaking — Index buys (SPY/IWM) favoured." };
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* Header */}
+      <header className="border-b border-zinc-800 px-6 py-3 flex items-center justify-between">
+        <h1 className="text-lg font-semibold tracking-tight">
+          Alpha-Beta<span className="text-zinc-500"> Decision Intelligence Terminal</span>
+        </h1>
+        <div className="text-xs text-zinc-500 font-mono">{new Date().toLocaleTimeString()}</div>
+      </header>
+
+      {/* VIX Banner */}
+      <div className="px-6 pt-3"><VIXBanner vix={vix} /></div>
+
+      {/* Tabs */}
+      <div className="px-6 pt-3">
+        <div className="inline-flex h-9 items-center rounded-lg bg-zinc-900 p-1">
+          {[["signals","Signals + Analysis"],["portfolio","Portfolio Optimizer"]].map(([k,l]) => (
+            <button key={k} onClick={() => setActiveTab(k)}
+              className={`px-3 py-1.5 text-sm rounded-md font-medium transition-all ${activeTab===k?"bg-zinc-800 text-zinc-50 shadow":"text-zinc-400 hover:text-zinc-200"}`}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 px-6 py-4">
+        {activeTab === "signals" && (
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-4">
+              <SignalGrid signals={signals} onSelect={setSelectedTicker} selectedTicker={selectedTicker} />
+            </div>
+            <div className="col-span-8 space-y-4">
+              <AnalysisPane chartData={thesis?.chartData || []} ticker={selectedTicker || ""} />
+              {thesis && <ThesisCard thesis={thesis} />}
+            </div>
+          </div>
+        )}
+        {activeTab === "portfolio" && <PortfolioVisualizer />}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
