@@ -1,35 +1,266 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Alpha-Beta Decision Intelligence Terminal</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
-  <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: {} } }
-  </script>
-  <style>
-    body { background: #09090b; color: #fafafa; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #09090b; }
-    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
-    .font-mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Alpha-Beta Decision Intelligence Terminal</title>
+<style>
+/* ── Reset & Base ────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#09090b;color:#fafafa;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px;overflow-x:hidden}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#09090b}
+::-webkit-scrollbar-thumb{background:#27272a;border-radius:3px}
+.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+header{border-bottom:1px solid #27272a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:18px;font-weight:600;letter-spacing:-0.3px}
+header h1 span{color:#71717a}
+.header-right{display:flex;align-items:center;gap:16px}
+.header-signals{display:flex;gap:12px;font-size:12px}
+.header-time{font-size:12px;color:#71717a}
+.main-content{padding:12px 24px 24px}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card{border-radius:12px;border:1px solid #27272a;background:#09090b;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.card-header{padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between}
+.card-body{padding:0 16px 16px}
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;border-radius:6px;border:1px solid;padding:1px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge-buy{background:rgba(16,185,129,.15);color:#34d399;border-color:rgba(16,185,129,.3)}
+.badge-sell{background:rgba(239,68,68,.15);color:#f87171;border-color:rgba(239,68,68,.3)}
+.badge-neutral{background:rgba(113,113,122,.15);color:#a1a1aa;border-color:rgba(113,113,122,.3)}
+.badge-warning{background:rgba(245,158,11,.15);color:#fbbf24;border-color:rgba(245,158,11,.3)}
+.badge-info{background:rgba(59,130,246,.15);color:#60a5fa;border-color:rgba(59,130,246,.3)}
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.tab-bar{display:inline-flex;align-items:center;background:#18181b;border-radius:8px;padding:3px}
+.tab-btn{padding:4px 12px;font-size:12px;font-weight:500;border-radius:6px;border:none;cursor:pointer;background:transparent;color:#71717a;transition:all .15s}
+.tab-btn:hover{color:#d4d4d8}
+.tab-btn.active{background:#27272a;color:#fafafa;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+
+/* ── Filter Buttons ──────────────────────────────────────────────────────── */
+.filter-bar{display:flex;gap:4px;margin-top:8px}
+.filter-btn{padding:2px 8px;font-size:11px;font-weight:500;border-radius:4px;border:none;cursor:pointer;background:transparent;color:#71717a;transition:all .15s}
+.filter-btn:hover{color:#d4d4d8}
+.filter-btn.active{background:#27272a;color:#fafafa}
+
+/* ── VIX Banner ──────────────────────────────────────────────────────────── */
+.vix-banner{border-radius:8px;border:1px solid rgba(153,27,27,.5);background:rgba(69,10,10,.4);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.vix-left{display:flex;align-items:center;gap:16px}
+.vix-label{font-size:11px;color:#a1a1aa}
+.vix-value{font-weight:700;font-size:18px}
+.vix-reco{font-size:11px;color:#a1a1aa;max-width:320px;text-align:right}
+
+/* ── Signal Grid ─────────────────────────────────────────────────────────── */
+.grid-container{display:grid;grid-template-columns:4fr 8fr;gap:16px}
+.signal-table-wrap{overflow:auto;max-height:calc(100vh - 280px)}
+.signal-table{width:100%;font-size:12px;border-collapse:collapse}
+.signal-table thead{position:sticky;top:0;background:#09090b;z-index:2}
+.signal-table th{padding:8px 8px;font-weight:500;color:#71717a;border-bottom:1px solid #27272a;text-align:right}
+.signal-table th:nth-child(1),.signal-table th:nth-child(2){text-align:left}
+.signal-table th:nth-child(4){text-align:center}
+.signal-table td{padding:6px 8px;border-bottom:1px solid rgba(39,39,42,.5);text-align:right}
+.signal-table td:nth-child(1),.signal-table td:nth-child(2){text-align:left}
+.signal-table td:nth-child(4){text-align:center}
+.signal-table tbody tr{cursor:pointer;transition:background .1s}
+.signal-table tbody tr:hover{background:#18181b}
+.signal-table tbody tr.selected{background:rgba(39,39,42,.6)}
+
+/* ── Arrow SVGs ──────────────────────────────────────────────────────────── */
+.arrow-up{display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid #10b981;vertical-align:middle}
+.arrow-down{display:inline-block;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:10px solid #ef4444;vertical-align:middle}
+.arrow-dash{color:#3f3f46}
+
+/* ── Charts ───────────────────────────────────────────────────────────────── */
+.chart-area{position:relative;height:360px}
+.chart-area canvas{position:absolute;top:0;left:0}
+.chart-tooltip{position:absolute;pointer-events:none;background:#18181b;border:1px solid #27272a;border-radius:8px;padding:8px 12px;font-size:11px;z-index:10;display:none;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.chart-legend{display:flex;gap:12px;padding:4px 0;font-size:11px}
+.chart-legend-item{display:flex;align-items:center;gap:4px}
+.legend-swatch{width:12px;height:3px;border-radius:2px}
+.arrow-legend{display:flex;gap:12px;font-size:11px;margin-left:auto}
+
+/* ── Thesis Card ─────────────────────────────────────────────────────────── */
+.thesis-header{display:flex;align-items:center;justify-content:space-between;padding:16px;padding-bottom:8px}
+.thesis-ticker{font-size:20px;font-weight:700}
+.thesis-price{font-size:24px;font-weight:700;margin-left:12px}
+.thesis-prob-label{font-size:11px;color:#a1a1aa}
+.thesis-prob-value{font-size:24px;font-weight:700}
+.thesis-section{margin-bottom:12px}
+.thesis-section h3{font-size:13px;font-weight:600;margin-bottom:4px}
+.thesis-section p{font-size:13px;color:#d4d4d8;line-height:1.5}
+.thesis-stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.thesis-stat-box{background:#18181b;border-radius:8px;padding:12px}
+.thesis-stat-box .label{font-size:11px;color:#a1a1aa;margin-bottom:8px}
+.thesis-stat-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.thesis-stat-row .key{color:#71717a}
+.thesis-backtest-bar{display:flex;align-items:center;justify-content:space-between;background:#18181b;border-radius:8px;padding:12px;margin-top:12px}
+.thesis-action-btn{width:100%;border-radius:8px;border:none;padding:12px;font-size:14px;font-weight:600;cursor:pointer;color:white;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-buy{background:#059669}
+.btn-buy:hover{background:#10b981}
+.btn-sell{background:#dc2626}
+.btn-sell:hover{background:#ef4444}
+
+/* ── Portfolio ───────────────────────────────────────────────────────────── */
+.portfolio-chart{height:340px;position:relative}
+.rebalance-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:#18181b;border-radius:8px;padding:12px;margin-top:8px}
+.rebalance-row{display:flex;justify-content:space-between;font-size:13px}
+
+/* ── Right Column ────────────────────────────────────────────────────────── */
+.right-col{display:flex;flex-direction:column;gap:16px}
+
+/* ── Colors ───────────────────────────────────────────────────────────────── */
+.c-green{color:#34d399}
+.c-red{color:#f87171}
+.c-amber{color:#fbbf24}
+.c-blue{color:#60a5fa}
+.c-muted{color:#71717a}
+.c-dim{color:#3f3f46}
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+.flex{display:flex}.items-center{align-items:center}.gap-2{gap:8px}.gap-3{gap:12px}.gap-4{gap:16px}
+.ml-auto{margin-left:auto}.mr-2{margin-right:8px}.mt-1{margin-top:4px}
+.text-right{text-align:right}.text-center{text-align:center}
+.font-bold{font-weight:700}.font-semibold{font-weight:600}
+.text-xs{font-size:11px}.text-sm{font-size:13px}.text-lg{font-size:18px}.text-xl{font-size:20px}.text-2xl{font-size:24px}
+.w-full{width:100%}
+.hidden{display:none}
+.empty-chart{display:flex;align-items:center;justify-content:center;height:360px;color:#71717a}
+</style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useMemo, useCallback } = React;
-const { LineChart, Line, BarChart, Bar, ScatterChart, Scatter, ComposedChart, Area,
-        XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } = Recharts;
 
-// ─── S&P 500 Full Ticker List ────────────────────────────────────────────────
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header>
+  <h1>Alpha-Beta<span> Decision Intelligence Terminal</span></h1>
+  <div class="header-right">
+    <div class="header-signals" id="headerSignals"></div>
+    <div class="header-time mono" id="headerTime"></div>
+  </div>
+</header>
 
-const SP500 = [
+<div class="main-content">
+  <!-- VIX Banner -->
+  <div class="vix-banner" id="vixBanner"></div>
+
+  <!-- Main Tabs -->
+  <div style="margin-bottom:12px">
+    <div class="tab-bar" id="mainTabs">
+      <button class="tab-btn active" data-tab="signals">Signals + Analysis</button>
+      <button class="tab-btn" data-tab="portfolio">Portfolio Optimizer</button>
+    </div>
+  </div>
+
+  <!-- Signals View -->
+  <div id="signalsView">
+    <div class="grid-container">
+      <!-- Left: Signal Grid -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="flex items-center gap-4" style="justify-content:space-between">
+              <h2 class="font-semibold">Signal Grid</h2>
+              <span class="text-xs c-muted" id="tickerCount"></span>
+            </div>
+            <div class="filter-bar" id="filterBar">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="buy">Buy Only</button>
+              <button class="filter-btn" data-filter="sell">Sell Only</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="signal-table-wrap">
+            <table class="signal-table">
+              <thead>
+                <tr>
+                  <th style="width:28px"></th>
+                  <th style="text-align:left">Ticker</th>
+                  <th>Price</th>
+                  <th>Signal</th>
+                  <th>Prob %</th>
+                  <th>RSI(5)</th>
+                  <th>MACD-Z</th>
+                  <th>Rev %</th>
+                </tr>
+              </thead>
+              <tbody id="signalBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Analysis + Thesis -->
+      <div class="right-col">
+        <!-- Analysis Chart Card -->
+        <div class="card" id="analysisCard">
+          <div class="card-header">
+            <div class="flex items-center gap-4">
+              <span class="font-semibold mono" id="analysisTicker">Select a ticker</span>
+              <div class="tab-bar" id="chartTabs">
+                <button class="tab-btn active" data-chart="price">Price + Signals</button>
+                <button class="tab-btn" data-chart="rsi">RSI 5/9/14</button>
+                <button class="tab-btn" data-chart="macd">MACD Z-Score</button>
+              </div>
+              <div class="arrow-legend" id="arrowLegend"></div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="chart-legend" id="chartLegend"></div>
+            <div class="chart-area" id="chartArea">
+              <canvas id="chartCanvas"></canvas>
+              <div class="chart-tooltip" id="chartTooltip"></div>
+              <div class="empty-chart" id="emptyChart">Select a ticker to view analysis</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Thesis Card -->
+        <div class="card hidden" id="thesisCard"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Portfolio View -->
+  <div id="portfolioView" class="hidden">
+    <div class="card">
+      <div class="card-header">
+        <span class="font-semibold">Portfolio Tangency Visualizer</span>
+        <div class="flex gap-2">
+          <span class="badge badge-info">Current Sharpe: 1.21</span>
+          <span class="badge badge-buy">Tangency Sharpe: 1.58</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="chart-legend">
+          <div class="chart-legend-item"><div class="legend-swatch" style="background:#3b82f6"></div>Efficient Frontier</div>
+          <div class="chart-legend-item"><div class="legend-swatch" style="background:#f59e0b;height:8px;width:8px;border-radius:50%"></div>Current Portfolio</div>
+          <div class="chart-legend-item"><div class="legend-swatch" style="background:#10b981;height:8px;width:8px;border-radius:50%"></div>Tangency Portfolio</div>
+        </div>
+        <div class="portfolio-chart">
+          <canvas id="portfolioCanvas"></canvas>
+        </div>
+        <div style="margin-top:12px">
+          <div class="text-xs c-muted font-semibold" style="margin-bottom:8px">Rebalancing Suggestions</div>
+          <div class="rebalance-grid" id="rebalanceGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Alpha-Beta Decision Intelligence Terminal — Zero-Dependency Preview
+   All charting via Canvas API. No CDN. No framework.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── S&P 500 Ticker List ──────────────────────────────────────────────────────
+
+var SP500 = [
   "AAPL","ABBV","ABT","ACN","ADBE","ADI","ADM","ADP","ADSK","AEE","AEP","AES","AFL","AIG","AIZ","AJG","AKAM","ALB","ALGN","ALK",
   "ALL","ALLE","AMAT","AMCR","AMD","AME","AMGN","AMP","AMT","AMZN","ANET","ANSS","AON","AOS","APA","APD","APH","APTV","ARE","ATO",
   "ATVI","AVGO","AVY","AWK","AXP","AZO","BA","BAC","BAX","BBWI","BBY","BDX","BEN","BF.B","BIIB","BIO","BK","BKNG","BKR","BLK",
@@ -57,40 +288,48 @@ const SP500 = [
   "XOM","XRAY","XYL","YUM","ZBH","ZBRA","ZION","ZTS"
 ];
 
-// ─── Synthetic data generation ───────────────────────────────────────────────
+// ── Seeded Random & Data Generation ─────────────────────────────────────────
 
 function seededRandom(seed) {
-  let s = seed;
-  return () => { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
+  var s = seed;
+  return function() { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
 }
 
-function generatePriceData(ticker, n = 300) {
-  const rng = seededRandom(ticker.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
-  const base = 20 + rng() * 400;
-  let price = base;
-  const data = [];
-  for (let i = 0; i < n; i++) {
-    const ret = (rng() - 0.5) * 0.04;
+function tickerSeed(ticker) {
+  var s = 0; for (var i = 0; i < ticker.length; i++) s += ticker.charCodeAt(i);
+  return s;
+}
+
+function generatePriceData(ticker, n) {
+  n = n || 300;
+  var rng = seededRandom(tickerSeed(ticker));
+  var base = 20 + rng() * 400;
+  var price = base;
+  var data = [];
+  for (var i = 0; i < n; i++) {
+    var ret = (rng() - 0.5) * 0.04;
     price *= (1 + ret);
-    const h = price * (1 + rng() * 0.015);
-    const l = price * (1 - rng() * 0.015);
-    data.push({ i, open: price * (1 + (rng()-0.5)*0.005), high: h, low: l, close: price, volume: Math.floor(rng()*5000000) });
+    var h = price * (1 + rng() * 0.015);
+    var l = price * (1 - rng() * 0.015);
+    data.push({ i: i, open: price * (1 + (rng()-0.5)*0.005), high: h, low: l, close: price, volume: Math.floor(rng()*5e6) });
   }
   return data;
 }
 
+// ── Technical Indicators ────────────────────────────────────────────────────
+
 function computeRSI(closes, period) {
-  const rsi = new Array(closes.length).fill(null);
+  var rsi = new Array(closes.length).fill(null);
   if (closes.length < period + 1) return rsi;
-  let avgGain = 0, avgLoss = 0;
-  for (let i = 1; i <= period; i++) {
-    const d = closes[i] - closes[i-1];
+  var avgGain = 0, avgLoss = 0;
+  for (var i = 1; i <= period; i++) {
+    var d = closes[i] - closes[i-1];
     if (d > 0) avgGain += d; else avgLoss -= d;
   }
   avgGain /= period; avgLoss /= period;
   rsi[period] = avgLoss === 0 ? 100 : 100 - 100/(1 + avgGain/avgLoss);
-  for (let i = period+1; i < closes.length; i++) {
-    const d = closes[i] - closes[i-1];
+  for (var i = period+1; i < closes.length; i++) {
+    var d = closes[i] - closes[i-1];
     avgGain = (avgGain * (period-1) + Math.max(d,0)) / period;
     avgLoss = (avgLoss * (period-1) + Math.max(-d,0)) / period;
     rsi[i] = avgLoss === 0 ? 100 : 100 - 100/(1 + avgGain/avgLoss);
@@ -99,597 +338,781 @@ function computeRSI(closes, period) {
 }
 
 function computeMACD(closes) {
-  const ema = (arr, span) => {
-    const k = 2/(span+1); const out = [arr[0]];
-    for (let i=1;i<arr.length;i++) out.push(arr[i]*k + out[i-1]*(1-k));
+  function ema(arr, span) {
+    var k = 2/(span+1); var out = [arr[0]];
+    for (var i=1;i<arr.length;i++) out.push(arr[i]*k + out[i-1]*(1-k));
     return out;
-  };
-  const e12 = ema(closes, 12), e26 = ema(closes, 26);
-  const macdLine = e12.map((v,i) => v - e26[i]);
-  const sig = ema(macdLine, 9);
-  const hist = macdLine.map((v,i) => v - sig[i]);
-  const zscores = hist.map((v, i) => {
+  }
+  var e12 = ema(closes, 12), e26 = ema(closes, 26);
+  var macdLine = e12.map(function(v,i){ return v - e26[i]; });
+  var sig = ema(macdLine, 9);
+  var hist = macdLine.map(function(v,i){ return v - sig[i]; });
+  var zscores = hist.map(function(v, i) {
     if (i < 50) return 0;
-    const w = hist.slice(Math.max(0, i-252), i+1);
-    const mean = w.reduce((a,b)=>a+b,0)/w.length;
-    const std = Math.sqrt(w.reduce((a,b)=>a+(b-mean)**2,0)/w.length) || 1;
+    var w = hist.slice(Math.max(0, i-252), i+1);
+    var mean = w.reduce(function(a,b){return a+b;},0)/w.length;
+    var std = Math.sqrt(w.reduce(function(a,b){return a+(b-mean)*(b-mean);},0)/w.length) || 1;
     return (v - mean) / std;
   });
-  return { macdLine, signal: sig, hist, zscores };
+  return { macdLine: macdLine, signal: sig, hist: hist, zscores: zscores };
 }
 
-function bollingerLower(closes, period=20, mult=2) {
-  return closes.map((_, i) => {
+function bollingerLower(closes, period, mult) {
+  period = period || 20; mult = mult || 2;
+  return closes.map(function(_, i) {
     if (i < period) return null;
-    const slice = closes.slice(i-period, i);
-    const mean = slice.reduce((a,b)=>a+b,0)/period;
-    const std = Math.sqrt(slice.reduce((a,b)=>a+(b-mean)**2,0)/period);
+    var slice = closes.slice(i-period, i);
+    var mean = slice.reduce(function(a,b){return a+b;},0)/period;
+    var std = Math.sqrt(slice.reduce(function(a,b){return a+(b-mean)*(b-mean);},0)/period);
     return mean - mult * std;
   });
 }
 
-// ─── Signal Generation with Arrow Logic ──────────────────────────────────────
+// ── Signal Generation ───────────────────────────────────────────────────────
 
 function generateSignals() {
-  return SP500.map(ticker => {
-    const data = generatePriceData(ticker, 300);
-    const closes = data.map(d => d.close);
-    const rsi5 = computeRSI(closes, 5);
-    const rsi9 = computeRSI(closes, 9);
-    const rsi14 = computeRSI(closes, 14);
-    const macd = computeMACD(closes);
-    const bb = bollingerLower(closes);
-    const last = data.length - 1;
-    const r5 = rsi5[last] || 50;
-    const r9 = rsi9[last] || 50;
-    const r14 = rsi14[last] || 50;
-    const z = macd.zscores[last] || 0;
+  return SP500.map(function(ticker) {
+    var data = generatePriceData(ticker, 300);
+    var closes = data.map(function(d){return d.close;});
+    var rsi5 = computeRSI(closes, 5);
+    var rsi9 = computeRSI(closes, 9);
+    var rsi14 = computeRSI(closes, 14);
+    var macd = computeMACD(closes);
+    var bb = bollingerLower(closes);
+    var last = data.length - 1;
+    var r5 = rsi5[last] || 50, r9 = rsi9[last] || 50, r14 = rsi14[last] || 50;
+    var z = macd.zscores[last] || 0;
 
-    // Phase detection per PRD
-    const phase1 = r5 < 30 && r9 < 35 && r14 < 40;
-    const prevR5 = rsi5[last-1] || 50, prevR9 = rsi9[last-1] || 50;
-    const crossAbove = r5 > r9 && prevR5 <= prevR9;
-    const bothBelow14 = r5 < r14 && r9 < r14;
-    const phase2 = crossAbove && bothBelow14;
-    const phase3 = phase2 && closes[last] < (bb[last] || Infinity);
+    var phase1 = r5 < 30 && r9 < 35 && r14 < 40;
+    var prevR5 = rsi5[last-1] || 50, prevR9 = rsi9[last-1] || 50;
+    var crossAbove = r5 > r9 && prevR5 <= prevR9;
+    var bothBelow14 = r5 < r14 && r9 < r14;
+    var phase2 = crossAbove && bothBelow14;
+    var phase3 = phase2 && closes[last] < (bb[last] || Infinity);
 
-    // Direction
-    let direction = "neutral";
+    var direction = "neutral";
     if (z < -2.0 || phase3) direction = "buy";
     else if (z > 2.0) direction = "sell";
 
-    // Arrow indicator: green_up for buy, red_down for sell
-    let arrow = "none";
+    var arrow = "none";
     if (z < -2.0 || phase3) arrow = "green_up";
     else if (z > 2.0) arrow = "red_down";
 
-    // Probability score
-    let score = 0;
+    var score = 0;
     if (phase3) score += 30;
     else if (phase2) score += 20;
     else if (phase1) score += 10;
-    const absZ = Math.abs(z);
+    var absZ = Math.abs(z);
     if (absZ > 2.5) score += 30;
     else if (absZ > 2.0) score += 25;
     else if (absZ > 1.5) score += 15;
     else if (absZ > 1.0) score += 5;
-    // VIX bonus (always on in demo)
-    score += 15;
+    score += 15; // VIX bonus
 
-    // Mock reversal %
-    const revPct = phase3 ? 68 + Math.floor((r5 % 10)) : (absZ > 2 ? 62 + Math.floor(absZ * 3) : 0);
+    var revPct = phase3 ? 68 + Math.floor(r5 % 10) : (absZ > 2 ? 62 + Math.floor(absZ * 3) : 0);
 
     return {
-      ticker, price: closes[last], signal_direction: direction, signal_arrow: arrow,
+      ticker: ticker, price: closes[last], signal_direction: direction, signal_arrow: arrow,
       probability_score: Math.min(score, 100), rsi_5: r5, macd_zscore: z,
-      reversal_pct: Math.min(revPct, 95),
+      reversal_pct: Math.min(revPct, 95)
     };
-  }).sort((a,b) => b.probability_score - a.probability_score);
+  }).sort(function(a,b){ return b.probability_score - a.probability_score; });
 }
 
+// ── Thesis Generation ───────────────────────────────────────────────────────
+
 function generateThesis(ticker) {
-  const data = generatePriceData(ticker, 300);
-  const closes = data.map(d => d.close);
-  const rsi5 = computeRSI(closes, 5);
-  const rsi9 = computeRSI(closes, 9);
-  const rsi14 = computeRSI(closes, 14);
-  const macd = computeMACD(closes);
-  const bb = bollingerLower(closes);
-  const last = closes.length - 1;
-  const z = macd.zscores[last];
-  const r5 = rsi5[last]||50, r9 = rsi9[last]||50, r14 = rsi14[last]||50;
+  var data = generatePriceData(ticker, 300);
+  var closes = data.map(function(d){return d.close;});
+  var rsi5 = computeRSI(closes, 5);
+  var rsi9 = computeRSI(closes, 9);
+  var rsi14 = computeRSI(closes, 14);
+  var macd = computeMACD(closes);
+  var bb = bollingerLower(closes);
+  var last = closes.length - 1;
+  var z = macd.zscores[last];
+  var r5 = rsi5[last]||50, r9 = rsi9[last]||50, r14 = rsi14[last]||50;
 
-  const phase1 = r5 < 30 && r9 < 35 && r14 < 40;
-  const prevR5 = rsi5[last-1] || 50, prevR9 = rsi9[last-1] || 50;
-  const crossAbove = r5 > r9 && prevR5 <= prevR9;
-  const bothBelow14 = r5 < r14 && r9 < r14;
-  const phase2 = crossAbove && bothBelow14;
-  const active = phase2 && closes[last] < (bb[last]||Infinity);
-  const phase = active ? 3 : phase2 ? 2 : phase1 ? 1 : 0;
+  var phase1 = r5 < 30 && r9 < 35 && r14 < 40;
+  var prevR5 = rsi5[last-1]||50, prevR9 = rsi9[last-1]||50;
+  var crossAbove = r5 > r9 && prevR5 <= prevR9;
+  var bothBelow14 = r5 < r14 && r9 < r14;
+  var phase2 = crossAbove && bothBelow14;
+  var active = phase2 && closes[last] < (bb[last]||Infinity);
+  var phase = active ? 3 : phase2 ? 2 : phase1 ? 1 : 0;
 
-  const regime = z < -2 ? "statistical_washout" : z > 2 ? "exhaustion" : "neutral";
-  const direction = regime === "statistical_washout" || active ? "buy" : regime === "exhaustion" ? "sell" : "neutral";
-  let prob = 0;
-  if (active) prob += 30;
-  else if (phase >= 2) prob += 20;
-  else if (phase >= 1) prob += 10;
-  if (Math.abs(z) > 2.0) prob += 25;
-  else if (Math.abs(z) > 1.5) prob += 15;
-  prob += 15; // VIX bonus
-  const sma200 = closes.slice(-200).reduce((a,b)=>a+b,0)/Math.min(200, closes.length);
-  const pctVsSma = ((closes[last] - sma200) / sma200 * 100);
-  const playType = pctVsSma < -2 ? "Mean Reversion" : pctVsSma > 2 ? "Trend Following" : "Range Bound";
+  var regime = z < -2 ? "statistical_washout" : z > 2 ? "exhaustion" : "neutral";
+  var direction = (regime === "statistical_washout" || active) ? "buy" : regime === "exhaustion" ? "sell" : "neutral";
+  var prob = 0;
+  if (active) prob += 30; else if (phase >= 2) prob += 20; else if (phase >= 1) prob += 10;
+  if (Math.abs(z) > 2.0) prob += 25; else if (Math.abs(z) > 1.5) prob += 15;
+  prob += 15;
+  var sma200 = closes.slice(-200).reduce(function(a,b){return a+b;},0)/Math.min(200, closes.length);
+  var pctVsSma = ((closes[last] - sma200) / sma200 * 100);
+  var playType = pctVsSma < -2 ? "Mean Reversion" : pctVsSma > 2 ? "Trend Following" : "Range Bound";
 
-  // Chart data with arrow markers
-  const chartData = data.slice(-200).map((d, idx) => {
-    const gi = data.length - 200 + idx;
-    const cz = macd.zscores[gi] || 0;
-    const cr5 = rsi5[gi] || null;
-    const cr9 = rsi9[gi] || null;
-    const cr14 = rsi14[gi] || null;
-    const cbb = bb[gi] || null;
+  var chartData = data.slice(-200).map(function(d, idx) {
+    var gi = data.length - 200 + idx;
+    var cz = macd.zscores[gi] || 0;
+    var cr5 = rsi5[gi] || null;
+    var cr9 = rsi9[gi] || null;
+    var cr14 = rsi14[gi] || null;
+    var cbb = bb[gi] || null;
 
-    // Detect Phase-3 or MACD extremes at each bar for arrow markers
-    const barPhase1 = cr5 !== null && cr9 !== null && cr14 !== null && cr5 < 30 && cr9 < 35 && cr14 < 40;
-    const prevCr5 = gi > 0 ? (rsi5[gi-1]||50) : 50;
-    const prevCr9 = gi > 0 ? (rsi9[gi-1]||50) : 50;
-    const barCross = cr5 > cr9 && prevCr5 <= prevCr9;
-    const barBothBelow = cr5 < cr14 && cr9 < cr14;
-    const barPhase3 = barCross && barBothBelow && cbb !== null && d.close < cbb;
+    var pCr5 = gi > 0 ? (rsi5[gi-1]||50) : 50;
+    var pCr9 = gi > 0 ? (rsi9[gi-1]||50) : 50;
+    var barCross = cr5 > cr9 && pCr5 <= pCr9;
+    var barBothBelow = cr5 < cr14 && cr9 < cr14;
+    var barPhase3 = barCross && barBothBelow && cbb !== null && d.close < cbb;
 
-    let buyArrow = null, sellArrow = null;
+    var buyArrow = null, sellArrow = null;
     if (cz < -2.0 || barPhase3) buyArrow = d.close;
     if (cz > 2.0) sellArrow = d.close;
 
     return {
-      time: `${idx}`,
-      close: +d.close.toFixed(2), high: +d.high.toFixed(2), low: +d.low.toFixed(2),
+      time: idx, close: +d.close.toFixed(2), high: +d.high.toFixed(2), low: +d.low.toFixed(2),
       bb_lower: cbb ? +cbb.toFixed(2) : null,
       rsi_5: cr5 ? +cr5.toFixed(2) : null,
       rsi_9: cr9 ? +cr9.toFixed(2) : null,
       rsi_14: cr14 ? +cr14.toFixed(2) : null,
       macd_hist: +macd.hist[gi].toFixed(4),
       hist_zscore: +cz.toFixed(3),
-      buyArrow,
-      sellArrow,
+      buyArrow: buyArrow, sellArrow: sellArrow
     };
   });
 
-  const revPct = active ? 68 : (Math.abs(z) > 2 ? 72 : 45);
-  const avgGain = active ? 3.2 : (Math.abs(z) > 2 ? 2.8 : 1.1);
-  const samples = active ? 14 : (Math.abs(z) > 2 ? 22 : 8);
+  var revPct = active ? 68 : (Math.abs(z) > 2 ? 72 : 45);
+  var avgGain = active ? 3.2 : (Math.abs(z) > 2 ? 2.8 : 1.1);
+  var samples = active ? 14 : (Math.abs(z) > 2 ? 22 : 8);
 
   return {
-    ticker, price: closes[last], signal_direction: direction, probability_score: Math.min(prob, 100),
+    ticker: ticker, price: closes[last], signal_direction: direction, probability_score: Math.min(prob, 100),
     why_now: active
-      ? `RSI Alignment detected (Phase 3 active). Historically, this setup has a ${revPct}% reversal rate for ${ticker} over the last 3 years (${samples} occurrences, avg gain ${avgGain}%).`
+      ? "RSI Alignment detected (Phase 3 active). Historically, this setup has a " + revPct + "% reversal rate for " + ticker + " over the last 3 years (" + samples + " occurrences, avg gain " + avgGain + "%)."
       : regime === "statistical_washout"
-      ? `MACD-Hist Z-Score at ${z.toFixed(1)} — statistical washout territory. Historical reversal rate: ${revPct}% over 3 years (${samples} signals).`
+      ? "MACD-Hist Z-Score at " + z.toFixed(1) + " \u2014 statistical washout territory. Historical reversal rate: " + revPct + "% over 3 years (" + samples + " signals)."
       : regime === "exhaustion"
-      ? `MACD-Hist Z-Score at +${z.toFixed(1)} — exhaustion territory. Historically, price reversed downward ${revPct}% of the time within 5 days.`
-      : `No strong directional signal detected at current levels for ${ticker}.`,
-    macro_tailwind: "VIX is currently 22.4 (dropping from 27.1 — lower high confirmed). Regime: extreme_fear_peaking. VIX spike peaking — Index buys (SPY/IWM) favoured.",
-    risk_summary: `Current price is ${Math.abs(pctVsSma).toFixed(1)}% ${pctVsSma < 0 ? "below" : "above"} SMA(200). This is a '${playType}' play. Historical max drawdown: 18.4%. Suggested stop-loss: 22.1%.`,
-    rsi: { rsi_5: +r5.toFixed(2), rsi_9: +r9.toFixed(2), rsi_14: +r14.toFixed(2), phase, active },
-    macd: { zscore: +z.toFixed(3), regime, macd_hist: +macd.hist[last].toFixed(4) },
-    vix: { current_vix: 22.4, vix_rsi2: 91.3, extreme_fear: true, lower_high_confirmed: true, regime: "extreme_fear_peaking", recommendation: "VIX spike peaking — Index buys favoured." },
+      ? "MACD-Hist Z-Score at +" + z.toFixed(1) + " \u2014 exhaustion territory. Historically, price reversed downward " + revPct + "% of the time within 5 days."
+      : "No strong directional signal detected at current levels for " + ticker + ".",
+    macro_tailwind: "VIX is currently 22.4 (dropping from 27.1 \u2014 lower high confirmed). Regime: extreme_fear_peaking. VIX spike peaking \u2014 Index buys (SPY/IWM) favoured.",
+    risk_summary: "Current price is " + Math.abs(pctVsSma).toFixed(1) + "% " + (pctVsSma < 0 ? "below" : "above") + " SMA(200). This is a '" + playType + "' play. Historical max drawdown: 18.4%. Suggested stop-loss: 22.1%.",
+    rsi: { rsi_5: +r5.toFixed(2), rsi_9: +r9.toFixed(2), rsi_14: +r14.toFixed(2), phase: phase, active: active },
+    macd: { zscore: +z.toFixed(3), regime: regime, macd_hist: +macd.hist[last].toFixed(4) },
+    vix: { current_vix: 22.4, vix_rsi2: 91.3, extreme_fear: true, lower_high_confirmed: true, regime: "extreme_fear_peaking", recommendation: "VIX spike peaking \u2014 Index buys favoured." },
     backtest: { reversal_pct: revPct, avg_gain_pct: avgGain, sample_count: samples },
     risk: { sma_200: +sma200.toFixed(2), price_vs_sma_200_pct: +pctVsSma.toFixed(2), play_type: playType, max_drawdown_pct: 18.4, suggested_stop_loss_pct: 22.1 },
-    chartData,
+    chartData: chartData
   };
 }
 
-function generateFrontier() {
-  const points = [];
-  for (let i = 0; i < 20; i++) {
-    const vol = 8 + i * 1.5;
-    const ret = 3 + Math.sqrt(i) * 3.5 - (i > 14 ? (i-14)*0.5 : 0);
-    points.push({ x: +vol.toFixed(2), y: +ret.toFixed(2) });
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CANVAS CHART ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var CHART_PADDING = { top: 20, right: 55, bottom: 30, left: 60 };
+
+function setupCanvas(canvas, container) {
+  var rect = container.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+  var ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  return { ctx: ctx, w: rect.width, h: rect.height };
+}
+
+function drawGrid(ctx, w, h, xLabels, yMin, yMax, ySteps) {
+  var p = CHART_PADDING;
+  var cw = w - p.left - p.right;
+  var ch = h - p.top - p.bottom;
+  ctx.strokeStyle = "#1e1e22";
+  ctx.lineWidth = 1;
+  for (var i = 0; i <= ySteps; i++) {
+    var y = p.top + (ch / ySteps) * i;
+    ctx.beginPath(); ctx.moveTo(p.left, y); ctx.lineTo(w - p.right, y); ctx.stroke();
+    var val = yMax - (yMax - yMin) * (i / ySteps);
+    ctx.fillStyle = "#52525b";
+    ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(formatNum(val), p.left - 8, y + 3);
   }
-  return points;
+  var step = Math.max(1, Math.floor(xLabels.length / 8));
+  ctx.textAlign = "center";
+  for (var i = 0; i < xLabels.length; i += step) {
+    var x = p.left + (cw / (xLabels.length - 1)) * i;
+    ctx.fillStyle = "#52525b";
+    ctx.fillText(xLabels[i], x, h - p.bottom + 16);
+  }
 }
 
-// ─── Arrow SVG Components ────────────────────────────────────────────────────
-
-function GreenArrow() {
-  return <span title="BUY signal" style={{display:"inline-block",lineHeight:1}}>
-    <svg width="18" height="18" viewBox="0 0 18 18"><polygon points="9,2 16,14 2,14" fill="#10b981" stroke="#059669" strokeWidth="1"/></svg>
-  </span>;
+function formatNum(v) {
+  if (Math.abs(v) >= 1000) return v.toFixed(0);
+  if (Math.abs(v) >= 100) return v.toFixed(1);
+  if (Math.abs(v) >= 1) return v.toFixed(2);
+  return v.toFixed(3);
 }
 
-function RedArrow() {
-  return <span title="SELL signal" style={{display:"inline-block",lineHeight:1}}>
-    <svg width="18" height="18" viewBox="0 0 18 18"><polygon points="9,16 16,4 2,4" fill="#ef4444" stroke="#dc2626" strokeWidth="1"/></svg>
-  </span>;
+function dataToPixel(idx, val, dataLen, yMin, yMax, w, h) {
+  var p = CHART_PADDING;
+  var cw = w - p.left - p.right;
+  var ch = h - p.top - p.bottom;
+  var x = p.left + (cw / Math.max(1, dataLen - 1)) * idx;
+  var y = p.top + ch - ((val - yMin) / (yMax - yMin || 1)) * ch;
+  return { x: x, y: y };
 }
 
-// Custom dot for chart buy/sell arrows
-function BuyArrowDot(props) {
-  const { cx, cy, payload } = props;
-  if (!payload || payload.buyArrow === null || payload.buyArrow === undefined) return null;
-  return <svg x={cx-8} y={cy-2} width={16} height={16} viewBox="0 0 16 16"><polygon points="8,0 15,12 1,12" fill="#10b981" stroke="#059669" strokeWidth="1"/></svg>;
-}
-function SellArrowDot(props) {
-  const { cx, cy, payload } = props;
-  if (!payload || payload.sellArrow === null || payload.sellArrow === undefined) return null;
-  return <svg x={cx-8} y={cy-6} width={16} height={16} viewBox="0 0 16 16"><polygon points="8,14 15,2 1,2" fill="#ef4444" stroke="#dc2626" strokeWidth="1"/></svg>;
+function drawLine(ctx, data, accessor, color, lineWidth, dataLen, yMin, yMax, w, h, dashed) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth || 1.5;
+  if (dashed) ctx.setLineDash(dashed); else ctx.setLineDash([]);
+  ctx.beginPath();
+  var started = false;
+  for (var i = 0; i < data.length; i++) {
+    var val = accessor(data[i]);
+    if (val === null || val === undefined) continue;
+    var pt = dataToPixel(i, val, dataLen, yMin, yMax, w, h);
+    if (!started) { ctx.moveTo(pt.x, pt.y); started = true; }
+    else ctx.lineTo(pt.x, pt.y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
 }
 
-// ─── UI Components ───────────────────────────────────────────────────────────
+function drawArea(ctx, data, accessor, color, alpha, dataLen, yMin, yMax, w, h) {
+  var p = CHART_PADDING;
+  var ch = h - p.top - p.bottom;
+  var baseY = p.top + ch;
+  ctx.fillStyle = color;
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  var started = false;
+  for (var i = 0; i < data.length; i++) {
+    var val = accessor(data[i]);
+    if (val === null || val === undefined) continue;
+    var pt = dataToPixel(i, val, dataLen, yMin, yMax, w, h);
+    if (!started) { ctx.moveTo(pt.x, baseY); ctx.lineTo(pt.x, pt.y); started = true; }
+    else ctx.lineTo(pt.x, pt.y);
+  }
+  if (started) {
+    var lastIdx = data.length - 1;
+    var lastVal = accessor(data[lastIdx]);
+    if (lastVal !== null && lastVal !== undefined) {
+      var lastPt = dataToPixel(lastIdx, lastVal, dataLen, yMin, yMax, w, h);
+      ctx.lineTo(lastPt.x, baseY);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
 
-function Badge({ variant = "neutral", children }) {
-  const colors = {
-    buy: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    sell: "bg-red-500/20 text-red-400 border-red-500/30",
-    neutral: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
-    warning: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    info: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+function drawBars(ctx, data, accessor, posColor, negColor, dataLen, yMin, yMax, w, h) {
+  var p = CHART_PADDING;
+  var cw = w - p.left - p.right;
+  var ch = h - p.top - p.bottom;
+  var barW = Math.max(1, cw / dataLen * 0.7);
+  var zeroY = p.top + ch - ((0 - yMin) / (yMax - yMin || 1)) * ch;
+  for (var i = 0; i < data.length; i++) {
+    var val = accessor(data[i]);
+    if (val === null || val === undefined) continue;
+    var pt = dataToPixel(i, val, dataLen, yMin, yMax, w, h);
+    ctx.fillStyle = val >= 0 ? posColor : negColor;
+    var topY = Math.min(pt.y, zeroY);
+    var barH = Math.abs(pt.y - zeroY) || 1;
+    ctx.fillRect(pt.x - barW/2, topY, barW, barH);
+  }
+}
+
+function drawRefLine(ctx, val, color, label, yMin, yMax, w, h, dashed) {
+  var p = CHART_PADDING;
+  var pt = dataToPixel(0, val, 2, yMin, yMax, w, h);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.setLineDash(dashed || [4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(p.left, pt.y);
+  ctx.lineTo(w - p.right, pt.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (label) {
+    ctx.fillStyle = color;
+    ctx.font = "10px ui-monospace, SFMono-Regular, monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(label, w - p.right + 4, pt.y + 3);
+  }
+}
+
+function drawArrows(ctx, data, dataLen, yMin, yMax, w, h) {
+  for (var i = 0; i < data.length; i++) {
+    var d = data[i];
+    if (d.buyArrow !== null && d.buyArrow !== undefined) {
+      var pt = dataToPixel(i, d.buyArrow, dataLen, yMin, yMax, w, h);
+      drawTriangle(ctx, pt.x, pt.y + 12, 6, "#10b981", "up");
+    }
+    if (d.sellArrow !== null && d.sellArrow !== undefined) {
+      var pt2 = dataToPixel(i, d.sellArrow, dataLen, yMin, yMax, w, h);
+      drawTriangle(ctx, pt2.x, pt2.y - 12, 6, "#ef4444", "down");
+    }
+  }
+}
+
+function drawTriangle(ctx, cx, cy, size, color, dir) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  if (dir === "up") {
+    ctx.moveTo(cx, cy - size);
+    ctx.lineTo(cx - size, cy + size);
+    ctx.lineTo(cx + size, cy + size);
+  } else {
+    ctx.moveTo(cx, cy + size);
+    ctx.lineTo(cx - size, cy - size);
+    ctx.lineTo(cx + size, cy - size);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  APP STATE & RENDERING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var state = {
+  signals: [],
+  selectedTicker: null,
+  thesis: null,
+  activeTab: "signals",
+  chartTab: "price",
+  filter: "all"
+};
+
+function init() {
+  state.signals = generateSignals();
+  renderVIXBanner();
+  renderHeader();
+  renderSignalGrid();
+  setupTabListeners();
+  setupFilterListeners();
+  setupChartTabListeners();
+  renderPortfolio();
+  setInterval(function() {
+    document.getElementById("headerTime").textContent = new Date().toLocaleTimeString();
+  }, 1000);
+  window.addEventListener("resize", function() {
+    if (state.thesis) renderChart();
+    if (state.activeTab === "portfolio") renderPortfolioChart();
+  });
+}
+
+function renderHeader() {
+  var buys = state.signals.filter(function(s){ return s.signal_arrow === "green_up"; }).length;
+  var sells = state.signals.filter(function(s){ return s.signal_arrow === "red_down"; }).length;
+  document.getElementById("headerSignals").innerHTML =
+    '<span class="flex items-center gap-2"><span class="arrow-up"></span><span class="c-green font-semibold">' + buys + ' Buy signals</span></span>' +
+    '<span class="flex items-center gap-2"><span class="arrow-down"></span><span class="c-red font-semibold">' + sells + ' Sell signals</span></span>';
+  document.getElementById("headerTime").textContent = new Date().toLocaleTimeString();
+}
+
+function renderVIXBanner() {
+  document.getElementById("vixBanner").innerHTML =
+    '<div class="vix-left">' +
+      '<div class="flex items-center gap-2"><span class="vix-label">VIX</span><span class="vix-value mono">22.4</span></div>' +
+      '<div class="flex items-center gap-2"><span class="vix-label">RSI(2)</span><span class="mono">91.3</span></div>' +
+      '<span class="badge badge-buy">EXTREME FEAR PEAKING</span>' +
+      '<span class="badge badge-buy">Lower High Confirmed</span>' +
+    '</div>' +
+    '<div class="vix-reco">VIX spike peaking \u2014 Index buys (SPY/IWM) favoured.</div>';
+}
+
+function renderSignalGrid() {
+  var filtered = state.filter === "all" ? state.signals :
+    state.signals.filter(function(s) {
+      return s.signal_arrow === (state.filter === "buy" ? "green_up" : "red_down");
+    });
+  document.getElementById("tickerCount").textContent = "S&P 500 \u00b7 " + filtered.length + " tickers";
+  var tbody = document.getElementById("signalBody");
+  var html = "";
+  for (var i = 0; i < filtered.length; i++) {
+    var s = filtered[i];
+    var arrowHtml = s.signal_arrow === "green_up" ? '<span class="arrow-up"></span>' :
+                    s.signal_arrow === "red_down" ? '<span class="arrow-down"></span>' :
+                    '<span class="arrow-dash">\u2014</span>';
+    var badgeClass = s.signal_direction === "buy" ? "badge-buy" : s.signal_direction === "sell" ? "badge-sell" : "badge-neutral";
+    var probClass = s.probability_score >= 60 ? "c-green" : s.probability_score >= 35 ? "c-amber" : "c-muted";
+    var zClass = s.macd_zscore < -2 ? "c-green" : s.macd_zscore > 2 ? "c-red" : "c-muted";
+    var revClass = s.reversal_pct > 60 ? "c-green" : s.reversal_pct > 0 ? "c-amber" : "c-dim";
+    var selected = state.selectedTicker === s.ticker ? " selected" : "";
+    html += '<tr class="' + selected + '" data-ticker="' + s.ticker + '">' +
+      '<td>' + arrowHtml + '</td>' +
+      '<td class="mono font-semibold">' + s.ticker + '</td>' +
+      '<td class="mono">$' + s.price.toFixed(2) + '</td>' +
+      '<td><span class="badge ' + badgeClass + '">' + s.signal_direction.toUpperCase() + '</span></td>' +
+      '<td class="mono font-semibold ' + probClass + '">' + s.probability_score.toFixed(1) + '</td>' +
+      '<td class="mono">' + s.rsi_5.toFixed(1) + '</td>' +
+      '<td class="mono ' + zClass + '">' + s.macd_zscore.toFixed(2) + '</td>' +
+      '<td class="mono ' + revClass + '">' + (s.reversal_pct > 0 ? s.reversal_pct + "%" : "\u2014") + '</td>' +
+      '</tr>';
+  }
+  tbody.innerHTML = html;
+  var rows = tbody.querySelectorAll("tr");
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].addEventListener("click", function() {
+      selectTicker(this.getAttribute("data-ticker"));
+    });
+  }
+}
+
+function selectTicker(ticker) {
+  state.selectedTicker = ticker;
+  state.thesis = generateThesis(ticker);
+  renderSignalGrid();
+  renderChart();
+  renderThesisCard();
+}
+
+// ── Chart Rendering ─────────────────────────────────────────────────────────
+
+function renderChart() {
+  var thesis = state.thesis;
+  if (!thesis) return;
+  document.getElementById("emptyChart").style.display = "none";
+  document.getElementById("analysisTicker").textContent = thesis.ticker + " Analysis";
+  var container = document.getElementById("chartArea");
+  var canvas = document.getElementById("chartCanvas");
+  var setup = setupCanvas(canvas, container);
+  var ctx = setup.ctx, w = setup.w, h = setup.h;
+  var data = thesis.chartData;
+  var tab = state.chartTab;
+  ctx.clearRect(0, 0, w, h);
+  var xLabels = data.map(function(d){ return String(d.time); });
+  if (tab === "price") renderPriceChart(ctx, data, xLabels, w, h);
+  else if (tab === "rsi") renderRSIChart(ctx, data, xLabels, w, h);
+  else if (tab === "macd") renderMACDChart(ctx, data, xLabels, w, h);
+  updateLegend(tab, data);
+  setupTooltip(canvas, container, data, w, h, tab);
+}
+
+function renderPriceChart(ctx, data, xLabels, w, h) {
+  var closes = data.map(function(d){return d.close;});
+  var bbs = data.map(function(d){return d.bb_lower;}).filter(function(v){return v!==null;});
+  var allVals = closes.concat(bbs);
+  var yMin = Math.min.apply(null, allVals) * 0.98;
+  var yMax = Math.max.apply(null, allVals) * 1.02;
+  drawGrid(ctx, w, h, xLabels, yMin, yMax, 6);
+  drawArea(ctx, data, function(d){return d.bb_lower;}, "#3b82f6", 0.08, data.length, yMin, yMax, w, h);
+  drawLine(ctx, data, function(d){return d.bb_lower;}, "#3b82f6", 1, data.length, yMin, yMax, w, h, [4,2]);
+  drawLine(ctx, data, function(d){return d.close;}, "#e4e4e7", 1.5, data.length, yMin, yMax, w, h);
+  drawArrows(ctx, data, data.length, yMin, yMax, w, h);
+}
+
+function renderRSIChart(ctx, data, xLabels, w, h) {
+  var yMin = 0, yMax = 100;
+  drawGrid(ctx, w, h, xLabels, yMin, yMax, 5);
+  drawRefLine(ctx, 30, "#10b981", "30 Oversold", yMin, yMax, w, h);
+  drawRefLine(ctx, 70, "#ef4444", "70 Overbought", yMin, yMax, w, h);
+  drawLine(ctx, data, function(d){return d.rsi_5;}, "#f59e0b", 1.5, data.length, yMin, yMax, w, h);
+  drawLine(ctx, data, function(d){return d.rsi_9;}, "#8b5cf6", 1.5, data.length, yMin, yMax, w, h);
+  drawLine(ctx, data, function(d){return d.rsi_14;}, "#06b6d4", 1.5, data.length, yMin, yMax, w, h);
+}
+
+function renderMACDChart(ctx, data, xLabels, w, h) {
+  var hists = data.map(function(d){return d.macd_hist;});
+  var zscores = data.map(function(d){return d.hist_zscore;});
+  var allVals = hists.concat(zscores);
+  var yMin = Math.min.apply(null, allVals) * 1.1;
+  var yMax = Math.max.apply(null, allVals) * 1.1;
+  yMin = Math.min(yMin, -3);
+  yMax = Math.max(yMax, 3);
+  drawGrid(ctx, w, h, xLabels, yMin, yMax, 6);
+  drawRefLine(ctx, -2, "#10b981", "BUY: -2 SD", yMin, yMax, w, h);
+  drawRefLine(ctx, 2, "#ef4444", "SELL: +2 SD", yMin, yMax, w, h);
+  drawRefLine(ctx, 0, "#3f3f46", null, yMin, yMax, w, h, [2,2]);
+  drawBars(ctx, data, function(d){return d.macd_hist;}, "#52525b", "#52525b", data.length, yMin, yMax, w, h);
+  drawLine(ctx, data, function(d){return d.hist_zscore;}, "#f59e0b", 2, data.length, yMin, yMax, w, h);
+}
+
+function updateLegend(tab, data) {
+  var legend = document.getElementById("chartLegend");
+  var arrowLeg = document.getElementById("arrowLegend");
+  if (tab === "price") {
+    legend.innerHTML =
+      '<div class="chart-legend-item"><div class="legend-swatch" style="background:#e4e4e7"></div>Close</div>' +
+      '<div class="chart-legend-item"><div class="legend-swatch" style="background:#3b82f6"></div>BB Lower</div>';
+    var buyCount = data.filter(function(d){return d.buyArrow!==null;}).length;
+    var sellCount = data.filter(function(d){return d.sellArrow!==null;}).length;
+    var arrowHtml = "";
+    if (buyCount > 0) arrowHtml += '<span class="flex items-center gap-2"><span class="arrow-up"></span><span class="c-green">' + buyCount + ' Buy</span></span>';
+    if (sellCount > 0) arrowHtml += '<span class="flex items-center gap-2"><span class="arrow-down"></span><span class="c-red">' + sellCount + ' Sell</span></span>';
+    arrowLeg.innerHTML = arrowHtml;
+  } else if (tab === "rsi") {
+    legend.innerHTML =
+      '<div class="chart-legend-item"><div class="legend-swatch" style="background:#f59e0b"></div>RSI(5)</div>' +
+      '<div class="chart-legend-item"><div class="legend-swatch" style="background:#8b5cf6"></div>RSI(9)</div>' +
+      '<div class="chart-legend-item"><div class="legend-swatch" style="background:#06b6d4"></div>RSI(14)</div>';
+    arrowLeg.innerHTML = "";
+  } else if (tab === "macd") {
+    legend.innerHTML =
+      '<div class="chart-legend-item"><div class="legend-swatch" style="background:#52525b"></div>MACD Hist</div>' +
+      '<div class="chart-legend-item"><div class="legend-swatch" style="background:#f59e0b"></div>Z-Score</div>';
+    arrowLeg.innerHTML = "";
+  }
+}
+
+function setupTooltip(canvas, container, data, w, h, tab) {
+  var tooltip = document.getElementById("chartTooltip");
+  var p = CHART_PADDING;
+  var cw = w - p.left - p.right;
+  canvas.onmousemove = function(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left;
+    var my = e.clientY - rect.top;
+    if (mx < p.left || mx > w - p.right || my < p.top || my > h - p.bottom) {
+      tooltip.style.display = "none"; return;
+    }
+    var idx = Math.round((mx - p.left) / cw * (data.length - 1));
+    idx = Math.max(0, Math.min(data.length - 1, idx));
+    var d = data[idx];
+    var html = '<div class="mono" style="margin-bottom:4px;color:#a1a1aa">Bar ' + d.time + '</div>';
+    if (tab === "price") {
+      html += '<div>Close: <span class="font-bold">$' + d.close.toFixed(2) + '</span></div>';
+      if (d.bb_lower !== null) html += '<div style="color:#60a5fa">BB Lower: $' + d.bb_lower.toFixed(2) + '</div>';
+      if (d.buyArrow !== null) html += '<div style="color:#34d399">\u25b2 BUY Signal</div>';
+      if (d.sellArrow !== null) html += '<div style="color:#f87171">\u25bc SELL Signal</div>';
+    } else if (tab === "rsi") {
+      if (d.rsi_5 !== null) html += '<div style="color:#f59e0b">RSI(5): ' + d.rsi_5.toFixed(1) + '</div>';
+      if (d.rsi_9 !== null) html += '<div style="color:#8b5cf6">RSI(9): ' + d.rsi_9.toFixed(1) + '</div>';
+      if (d.rsi_14 !== null) html += '<div style="color:#06b6d4">RSI(14): ' + d.rsi_14.toFixed(1) + '</div>';
+    } else if (tab === "macd") {
+      html += '<div style="color:#a1a1aa">Hist: ' + d.macd_hist.toFixed(4) + '</div>';
+      html += '<div style="color:#f59e0b">Z-Score: ' + d.hist_zscore.toFixed(3) + '</div>';
+    }
+    tooltip.innerHTML = html;
+    tooltip.style.display = "block";
+    var tx = mx + 12;
+    if (tx + 160 > w) tx = mx - 170;
+    tooltip.style.left = tx + "px";
+    tooltip.style.top = (my - 10) + "px";
   };
-  return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${colors[variant] || colors.neutral}`}>{children}</span>;
+  canvas.onmouseleave = function() { tooltip.style.display = "none"; };
 }
 
-function VIXBanner({ vix }) {
-  const bg = vix.extreme_fear ? "bg-red-950/50 border-red-800/50" : "bg-zinc-900 border-zinc-800";
-  return (
-    <div className={`rounded-lg border px-4 py-2 flex items-center justify-between ${bg}`}>
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-400">VIX</span>
-          <span className="font-mono font-bold text-lg">{vix.current_vix}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-400">RSI(2)</span>
-          <span className="font-mono">{vix.vix_rsi2}</span>
-        </div>
-        <Badge variant={vix.extreme_fear ? (vix.lower_high_confirmed ? "buy" : "sell") : "neutral"}>
-          {vix.regime.replace(/_/g, ' ').toUpperCase()}
-        </Badge>
-        {vix.lower_high_confirmed && <Badge variant="buy">Lower High Confirmed</Badge>}
-      </div>
-      <div className="text-xs text-zinc-400 max-w-md text-right">{vix.recommendation}</div>
-    </div>
-  );
+// ── Thesis Card ─────────────────────────────────────────────────────────────
+
+function renderThesisCard() {
+  var thesis = state.thesis;
+  var card = document.getElementById("thesisCard");
+  if (!thesis) { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+  var t = thesis;
+  var arrowHtml = t.signal_direction === "buy" ? '<span class="arrow-up" style="margin:0 4px"></span>' :
+                  t.signal_direction === "sell" ? '<span class="arrow-down" style="margin:0 4px"></span>' : '';
+  var badgeClass = t.signal_direction === "buy" ? "badge-buy" : t.signal_direction === "sell" ? "badge-sell" : "badge-neutral";
+  var probClass = t.probability_score >= 60 ? "c-green" : t.probability_score >= 35 ? "c-amber" : "c-muted";
+
+  var html = '<div class="thesis-header">' +
+    '<div class="flex items-center gap-3">' +
+      '<span class="thesis-ticker mono">' + t.ticker + '</span>' +
+      '<span class="thesis-price mono">$' + t.price.toFixed(2) + '</span>' +
+      arrowHtml +
+      '<span class="badge ' + badgeClass + '">' + t.signal_direction.toUpperCase() + '</span>' +
+    '</div>' +
+    '<div class="text-right">' +
+      '<div class="thesis-prob-label">Probability</div>' +
+      '<div class="thesis-prob-value mono ' + probClass + '">' + t.probability_score.toFixed(1) + '%</div>' +
+    '</div></div>';
+  html += '<div class="card-body">';
+  html += '<div class="thesis-section"><h3 style="color:#34d399">Why Now</h3><p>' + t.why_now + '</p></div>';
+  html += '<div class="thesis-section"><h3 style="color:#60a5fa">Macro Tailwind</h3><p>' + t.macro_tailwind + '</p></div>';
+  html += '<div class="thesis-section"><h3 style="color:#fbbf24">Risk</h3><p>' + t.risk_summary + '</p></div>';
+  html += '<div class="thesis-stats-grid">';
+
+  // RSI
+  html += '<div class="thesis-stat-box"><div class="label">RSI Alignment</div>';
+  html += '<div class="thesis-stat-row"><span class="key">RSI(5)</span><span' + (t.rsi.rsi_5 < 30 ? ' class="c-green"' : '') + '>' + t.rsi.rsi_5 + '</span></div>';
+  html += '<div class="thesis-stat-row"><span class="key">RSI(9)</span><span' + (t.rsi.rsi_9 < 35 ? ' class="c-green"' : '') + '>' + t.rsi.rsi_9 + '</span></div>';
+  html += '<div class="thesis-stat-row"><span class="key">RSI(14)</span><span' + (t.rsi.rsi_14 < 40 ? ' class="c-green"' : '') + '>' + t.rsi.rsi_14 + '</span></div>';
+  html += '<div style="border-top:1px solid #27272a;padding-top:4px;margin-top:4px"><span class="badge ' + (t.rsi.active ? "badge-buy" : "badge-neutral") + '">Phase ' + t.rsi.phase + '</span></div></div>';
+
+  // MACD
+  html += '<div class="thesis-stat-box"><div class="label">MACD Z-Score</div>';
+  var zClass = t.macd.zscore < -2 ? "c-green" : t.macd.zscore > 2 ? "c-red" : "";
+  html += '<div class="thesis-stat-row"><span class="key">Z-Score</span><span class="' + zClass + '">' + t.macd.zscore.toFixed(2) + '</span></div>';
+  html += '<div class="thesis-stat-row"><span class="key">Hist</span><span>' + t.macd.macd_hist.toFixed(4) + '</span></div>';
+  var regBadge = t.macd.regime === "statistical_washout" ? "badge-buy" : t.macd.regime === "exhaustion" ? "badge-sell" : "badge-neutral";
+  html += '<div style="border-top:1px solid #27272a;padding-top:4px;margin-top:4px"><span class="badge ' + regBadge + '">' + t.macd.regime.replace(/_/g, " ") + '</span></div></div>';
+
+  // VIX
+  html += '<div class="thesis-stat-box"><div class="label">VIX Context</div>';
+  html += '<div class="thesis-stat-row"><span class="key">VIX</span><span>' + t.vix.current_vix + '</span></div>';
+  html += '<div class="thesis-stat-row"><span class="key">RSI(2)</span><span' + (t.vix.vix_rsi2 > 90 ? ' class="c-red"' : '') + '>' + t.vix.vix_rsi2 + '</span></div>';
+  var vixBadge = t.vix.extreme_fear ? (t.vix.lower_high_confirmed ? "badge-buy" : "badge-sell") : "badge-neutral";
+  html += '<div style="border-top:1px solid #27272a;padding-top:4px;margin-top:4px"><span class="badge ' + vixBadge + '">' + t.vix.regime.replace(/_/g, " ") + '</span></div></div>';
+  html += '</div>';
+
+  // Backtest bar
+  html += '<div class="thesis-backtest-bar">' +
+    '<div><span class="text-xs c-muted">Backtest</span> <span class="mono text-sm">' + t.backtest.reversal_pct + '% reversal rate</span>' +
+    ' <span class="text-xs c-muted">(' + t.backtest.sample_count + ' samples, avg +' + t.backtest.avg_gain_pct + '%)</span></div>' +
+    '<div><span class="text-xs c-muted">Stop-Loss</span> <span class="mono text-sm c-red">' + t.risk.suggested_stop_loss_pct + '%</span></div></div>';
+
+  if (t.signal_direction === "buy") {
+    html += '<button class="thesis-action-btn btn-buy" onclick="alert(\'Quick-Trade: BUY $100 of ' + t.ticker + ' with stop-loss at -' + t.risk.suggested_stop_loss_pct + '%\')">' +
+      '<span class="arrow-up"></span> Quick-Trade $100 \u00b7 Stop at -' + t.risk.suggested_stop_loss_pct + '%</button>';
+  }
+  if (t.signal_direction === "sell") {
+    html += '<button class="thesis-action-btn btn-sell" onclick="alert(\'Quick-Sell: SELL ' + t.ticker + ' \u2014 Exhaustion signal at MACD Z +' + t.macd.zscore.toFixed(1) + '\')">' +
+      '<span class="arrow-down"></span> Quick-Sell \u00b7 Exhaustion Signal</button>';
+  }
+  html += '</div>';
+  card.innerHTML = html;
 }
 
-function SignalGrid({ signals, onSelect, selectedTicker, filter, onFilterChange }) {
-  const probColor = (s) => s >= 60 ? "text-emerald-400" : s >= 35 ? "text-amber-400" : "text-zinc-500";
-  const filtered = filter === "all" ? signals : signals.filter(s => s.signal_arrow === (filter === "buy" ? "green_up" : "red_down"));
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow h-full flex flex-col">
-      <div className="p-4 pb-2 border-b border-zinc-800">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-base font-semibold">Signal Grid</h2>
-          <span className="text-xs text-zinc-500">S&P 500 · {filtered.length} tickers</span>
-        </div>
-        <div className="flex gap-1">
-          {[["all","All"],["buy","Buy Only"],["sell","Sell Only"]].map(([k,l]) => (
-            <button key={k} onClick={() => onFilterChange(k)}
-              className={`px-2 py-0.5 text-xs rounded font-medium transition-all ${filter===k?"bg-zinc-800 text-zinc-50":"text-zinc-500 hover:text-zinc-300"}`}>{l}</button>
-          ))}
-        </div>
-      </div>
-      <div className="overflow-auto flex-1" style={{ maxHeight: "calc(100vh - 300px)" }}>
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-zinc-950 z-10">
-            <tr className="border-b border-zinc-800 text-zinc-400">
-              <th className="text-center py-2 px-2 font-medium w-8"></th>
-              <th className="text-left py-2 px-2 font-medium">Ticker</th>
-              <th className="text-right py-2 px-2 font-medium">Price</th>
-              <th className="text-center py-2 px-2 font-medium">Signal</th>
-              <th className="text-right py-2 px-2 font-medium">Prob %</th>
-              <th className="text-right py-2 px-2 font-medium">RSI(5)</th>
-              <th className="text-right py-2 px-2 font-medium">MACD-Z</th>
-              <th className="text-right py-2 px-2 font-medium">Rev %</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(s => (
-              <tr key={s.ticker} onClick={() => onSelect(s.ticker)}
-                className={`border-b border-zinc-800/50 cursor-pointer transition-colors hover:bg-zinc-900 ${selectedTicker === s.ticker ? "bg-zinc-800/60" : ""}`}>
-                <td className="text-center py-1.5 px-2">
-                  {s.signal_arrow === "green_up" ? <GreenArrow /> : s.signal_arrow === "red_down" ? <RedArrow /> : <span className="text-zinc-700">—</span>}
-                </td>
-                <td className="py-1.5 px-2 font-mono font-semibold text-xs">{s.ticker}</td>
-                <td className="text-right py-1.5 px-2 font-mono text-xs">${s.price.toFixed(2)}</td>
-                <td className="text-center py-1.5 px-2">
-                  <Badge variant={s.signal_direction === "buy" ? "buy" : s.signal_direction === "sell" ? "sell" : "neutral"}>
-                    {s.signal_direction.toUpperCase()}
-                  </Badge>
-                </td>
-                <td className={`text-right py-1.5 px-2 font-mono text-xs font-semibold ${probColor(s.probability_score)}`}>{s.probability_score.toFixed(1)}</td>
-                <td className="text-right py-1.5 px-2 font-mono text-xs">{s.rsi_5.toFixed(1)}</td>
-                <td className={`text-right py-1.5 px-2 font-mono text-xs ${s.macd_zscore < -2 ? "text-emerald-400" : s.macd_zscore > 2 ? "text-red-400" : "text-zinc-400"}`}>{s.macd_zscore.toFixed(2)}</td>
-                <td className={`text-right py-1.5 px-2 font-mono text-xs ${s.reversal_pct > 60 ? "text-emerald-400" : s.reversal_pct > 0 ? "text-amber-400" : "text-zinc-600"}`}>
-                  {s.reversal_pct > 0 ? `${s.reversal_pct}%` : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+// ── Portfolio Visualizer ────────────────────────────────────────────────────
+
+function renderPortfolio() {
+  var suggestions = { NVDA: 8.2, AMZN: 3.1, META: 2.4, MSFT: 1.8, AAPL: -4.5, INTC: -6.8, WBA: -3.2 };
+  var grid = document.getElementById("rebalanceGrid");
+  var html = "";
+  var tickers = Object.keys(suggestions);
+  for (var i = 0; i < tickers.length; i++) {
+    var tk = tickers[i];
+    var delta = suggestions[tk];
+    html += '<div class="rebalance-row mono"><span>' + tk + '</span><span class="' + (delta > 0 ? "c-green" : "c-red") + '">' +
+      (delta > 0 ? "+" : "") + delta.toFixed(2) + '%</span></div>';
+  }
+  grid.innerHTML = html;
 }
 
-function ThesisCard({ thesis }) {
-  const t = thesis;
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow">
-      <div className="p-5 pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-mono font-bold">{t.ticker}</span>
-            <span className="text-2xl font-mono font-bold">${t.price.toFixed(2)}</span>
-            {t.signal_direction === "buy" && <GreenArrow />}
-            {t.signal_direction === "sell" && <RedArrow />}
-            <Badge variant={t.signal_direction === "buy" ? "buy" : t.signal_direction === "sell" ? "sell" : "neutral"}>
-              {t.signal_direction.toUpperCase()}
-            </Badge>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-zinc-400">Probability</div>
-            <div className={`text-2xl font-mono font-bold ${t.probability_score >= 60 ? "text-emerald-400" : t.probability_score >= 35 ? "text-amber-400" : "text-zinc-500"}`}>
-              {t.probability_score.toFixed(1)}%
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="px-5 pb-5 space-y-4">
-        <div><h3 className="text-sm font-semibold text-emerald-400 mb-1">Why Now</h3><p className="text-sm text-zinc-300">{t.why_now}</p></div>
-        <div><h3 className="text-sm font-semibold text-blue-400 mb-1">Macro Tailwind</h3><p className="text-sm text-zinc-300">{t.macro_tailwind}</p></div>
-        <div><h3 className="text-sm font-semibold text-amber-400 mb-1">Risk</h3><p className="text-sm text-zinc-300">{t.risk_summary}</p></div>
+function renderPortfolioChart() {
+  var container = document.querySelector(".portfolio-chart");
+  var canvas = document.getElementById("portfolioCanvas");
+  var setup = setupCanvas(canvas, container);
+  var ctx = setup.ctx, w = setup.w, h = setup.h;
+  ctx.clearRect(0, 0, w, h);
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-lg bg-zinc-900 p-3">
-            <div className="text-xs text-zinc-400 mb-2">RSI Alignment</div>
-            <div className="space-y-1 font-mono text-sm">
-              <div className="flex justify-between"><span className="text-zinc-500">RSI(5)</span><span className={t.rsi.rsi_5 < 30 ? "text-emerald-400" : ""}>{t.rsi.rsi_5}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">RSI(9)</span><span className={t.rsi.rsi_9 < 35 ? "text-emerald-400" : ""}>{t.rsi.rsi_9}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">RSI(14)</span><span className={t.rsi.rsi_14 < 40 ? "text-emerald-400" : ""}>{t.rsi.rsi_14}</span></div>
-              <div className="pt-1 border-t border-zinc-800"><Badge variant={t.rsi.active ? "buy" : "neutral"}>Phase {t.rsi.phase}</Badge></div>
-            </div>
-          </div>
-          <div className="rounded-lg bg-zinc-900 p-3">
-            <div className="text-xs text-zinc-400 mb-2">MACD Z-Score</div>
-            <div className="space-y-1 font-mono text-sm">
-              <div className="flex justify-between"><span className="text-zinc-500">Z-Score</span><span className={t.macd.zscore < -2 ? "text-emerald-400" : t.macd.zscore > 2 ? "text-red-400" : ""}>{t.macd.zscore.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">Hist</span><span>{t.macd.macd_hist.toFixed(4)}</span></div>
-              <div className="pt-1 border-t border-zinc-800"><Badge variant={t.macd.regime==="statistical_washout"?"buy":t.macd.regime==="exhaustion"?"sell":"neutral"}>{t.macd.regime.replace(/_/g,' ')}</Badge></div>
-            </div>
-          </div>
-          <div className="rounded-lg bg-zinc-900 p-3">
-            <div className="text-xs text-zinc-400 mb-2">VIX Context</div>
-            <div className="space-y-1 font-mono text-sm">
-              <div className="flex justify-between"><span className="text-zinc-500">VIX</span><span>{t.vix.current_vix}</span></div>
-              <div className="flex justify-between"><span className="text-zinc-500">RSI(2)</span><span className={t.vix.vix_rsi2>90?"text-red-400":""}>{t.vix.vix_rsi2}</span></div>
-              <div className="pt-1 border-t border-zinc-800"><Badge variant={t.vix.extreme_fear?(t.vix.lower_high_confirmed?"buy":"sell"):"neutral"}>{t.vix.regime.replace(/_/g,' ')}</Badge></div>
-            </div>
-          </div>
-        </div>
+  var frontier = [];
+  for (var i = 0; i < 20; i++) {
+    var vol = 8 + i * 1.5;
+    var ret = 3 + Math.sqrt(i) * 3.5 - (i > 14 ? (i-14)*0.5 : 0);
+    frontier.push({ x: vol, y: ret });
+  }
+  var current = { x: 14.5, y: 8.2 };
+  var tangency = { x: 12.8, y: 11.5 };
+  var xMin = 6, xMax = 40, yMin = 0, yMax = 16;
+  var p = CHART_PADDING;
+  var cw = w - p.left - p.right;
+  var ch = h - p.top - p.bottom;
 
-        <div className="rounded-lg bg-zinc-900 p-3 flex items-center justify-between">
-          <div>
-            <span className="text-xs text-zinc-400">Backtest</span>
-            <span className="ml-2 text-sm font-mono">{t.backtest.reversal_pct}% reversal rate</span>
-            <span className="ml-2 text-xs text-zinc-500">({t.backtest.sample_count} samples, avg +{t.backtest.avg_gain_pct}%)</span>
-          </div>
-          <div>
-            <span className="text-xs text-zinc-400">Stop-Loss</span>
-            <span className="ml-2 text-sm font-mono text-red-400">{t.risk.suggested_stop_loss_pct}%</span>
-          </div>
-        </div>
+  function toPixel(pt) {
+    return {
+      x: p.left + ((pt.x - xMin) / (xMax - xMin)) * cw,
+      y: p.top + ch - ((pt.y - yMin) / (yMax - yMin)) * ch
+    };
+  }
 
-        {t.signal_direction === "buy" && (
-          <button className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 transition-colors flex items-center justify-center gap-2"
-            onClick={() => alert(`Quick-Trade: BUY $100 of ${t.ticker} with stop-loss at -${t.risk.suggested_stop_loss_pct}%`)}>
-            <GreenArrow /> Quick-Trade $100 &middot; Stop at -{t.risk.suggested_stop_loss_pct}%
-          </button>
-        )}
-        {t.signal_direction === "sell" && (
-          <button className="w-full rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold py-3 transition-colors flex items-center justify-center gap-2"
-            onClick={() => alert(`Quick-Sell: SELL ${t.ticker} — Exhaustion signal at MACD Z +${t.macd.zscore.toFixed(1)}`)}>
-            <RedArrow /> Quick-Sell &middot; Exhaustion Signal
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  ctx.strokeStyle = "#1e1e22"; ctx.lineWidth = 1;
+  for (var i = 0; i <= 8; i++) {
+    var y = p.top + (ch / 8) * i;
+    ctx.beginPath(); ctx.moveTo(p.left, y); ctx.lineTo(w-p.right, y); ctx.stroke();
+    var val = yMax - (yMax - yMin) * (i / 8);
+    ctx.fillStyle = "#52525b"; ctx.font = "10px ui-monospace, SFMono-Regular, monospace"; ctx.textAlign = "right";
+    ctx.fillText(val.toFixed(0) + "%", p.left - 8, y + 3);
+  }
+  for (var i = 0; i <= 8; i++) {
+    var x = p.left + (cw / 8) * i;
+    ctx.beginPath(); ctx.moveTo(x, p.top); ctx.lineTo(x, h-p.bottom); ctx.stroke();
+    var val = xMin + (xMax - xMin) * (i / 8);
+    ctx.fillStyle = "#52525b"; ctx.textAlign = "center";
+    ctx.fillText(val.toFixed(0) + "%", x, h - p.bottom + 16);
+  }
+
+  ctx.fillStyle = "#71717a"; ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Risk (Volatility %)", w/2, h - 2);
+  ctx.save(); ctx.translate(12, h/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText("Return %", 0, 0); ctx.restore();
+
+  ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 2; ctx.beginPath();
+  for (var i = 0; i < frontier.length; i++) {
+    var pt = toPixel(frontier[i]);
+    if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+  }
+  ctx.stroke();
+  for (var i = 0; i < frontier.length; i++) {
+    var pt = toPixel(frontier[i]);
+    ctx.fillStyle = "#3b82f6"; ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2); ctx.fill();
+  }
+
+  var cp = toPixel(current);
+  ctx.fillStyle = "#f59e0b"; ctx.save(); ctx.translate(cp.x, cp.y); ctx.rotate(Math.PI/4);
+  ctx.fillRect(-6, -6, 12, 12); ctx.restore();
+  ctx.fillStyle = "#f59e0b"; ctx.font = "11px ui-sans-serif, system-ui, sans-serif"; ctx.textAlign = "left";
+  ctx.fillText("Current", cp.x + 12, cp.y + 4);
+
+  var tp = toPixel(tangency);
+  drawStar(ctx, tp.x, tp.y, 8, "#10b981");
+  ctx.fillStyle = "#10b981"; ctx.textAlign = "left";
+  ctx.fillText("Tangency", tp.x + 12, tp.y + 4);
 }
 
-function AnalysisPane({ chartData, ticker }) {
-  const [tab, setTab] = useState("price");
-  if (!chartData || !chartData.length) return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow flex items-center justify-center h-[420px]">
-      <span className="text-zinc-500">Select a ticker to view analysis</span>
-    </div>
-  );
-
-  // Count arrows for legend
-  const buyCount = chartData.filter(d => d.buyArrow !== null).length;
-  const sellCount = chartData.filter(d => d.sellArrow !== null).length;
-
-  const tabs = [["price","Price + Signals"],["rsi","RSI 5/9/14"],["macd","MACD Z-Score"]];
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow">
-      <div className="p-4 pb-2 flex items-center gap-4">
-        <span className="font-semibold font-mono">{ticker} Analysis</span>
-        <div className="inline-flex h-8 items-center rounded-lg bg-zinc-900 p-1">
-          {tabs.map(([k,label]) => (
-            <button key={k} onClick={() => setTab(k)}
-              className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${tab === k ? "bg-zinc-800 text-zinc-50 shadow" : "text-zinc-400 hover:text-zinc-200"}`}>{label}</button>
-          ))}
-        </div>
-        {tab === "price" && (buyCount > 0 || sellCount > 0) && (
-          <div className="flex gap-3 ml-auto text-xs">
-            {buyCount > 0 && <span className="flex items-center gap-1"><GreenArrow /><span className="text-emerald-400">{buyCount} Buy</span></span>}
-            {sellCount > 0 && <span className="flex items-center gap-1"><RedArrow /><span className="text-red-400">{sellCount} Sell</span></span>}
-          </div>
-        )}
-      </div>
-      <div className="p-4 pt-0 h-[360px]">
-        {tab === "price" && (
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{top:10,right:10,bottom:0,left:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="time" tick={{fontSize:9,fill:"#71717a"}} interval={40} />
-              <YAxis domain={["auto","auto"]} tick={{fontSize:10,fill:"#71717a"}} />
-              <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} labelStyle={{color:"#a1a1aa"}}
-                formatter={(value, name) => {
-                  if (name === "Buy Signal" || name === "Sell Signal") return value ? [`$${value}`, name] : [null, null];
-                  return [`$${value}`, name];
-                }}
-              />
-              <Area type="monotone" dataKey="bb_lower" stroke="none" fill="#3b82f6" fillOpacity={0.08} name="BB Zone" />
-              <Line type="monotone" dataKey="close" stroke="#e4e4e7" dot={false} strokeWidth={1.5} name="Close" />
-              <Line type="monotone" dataKey="bb_lower" stroke="#3b82f6" dot={false} strokeWidth={1} strokeDasharray="4 2" name="BB Lower" />
-              <Line type="monotone" dataKey="buyArrow" stroke="none" dot={<BuyArrowDot />} name="Buy Signal" legendType="none" />
-              <Line type="monotone" dataKey="sellArrow" stroke="none" dot={<SellArrowDot />} name="Sell Signal" legendType="none" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        )}
-        {tab === "rsi" && (
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{top:10,right:10,bottom:0,left:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="time" tick={{fontSize:9,fill:"#71717a"}} interval={40} />
-              <YAxis domain={[0,100]} tick={{fontSize:10,fill:"#71717a"}} />
-              <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} labelStyle={{color:"#a1a1aa"}} />
-              <ReferenceLine y={30} stroke="#10b981" strokeDasharray="3 3" label={{value:"30 (Oversold)",fill:"#10b981",fontSize:9}} />
-              <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" label={{value:"70 (Overbought)",fill:"#ef4444",fontSize:9}} />
-              <Line type="monotone" dataKey="rsi_5" stroke="#f59e0b" dot={false} strokeWidth={1.5} name="RSI(5)" />
-              <Line type="monotone" dataKey="rsi_9" stroke="#8b5cf6" dot={false} strokeWidth={1.5} name="RSI(9)" />
-              <Line type="monotone" dataKey="rsi_14" stroke="#06b6d4" dot={false} strokeWidth={1.5} name="RSI(14)" />
-              <Legend />
-            </ComposedChart>
-          </ResponsiveContainer>
-        )}
-        {tab === "macd" && (
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{top:10,right:10,bottom:0,left:0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="time" tick={{fontSize:9,fill:"#71717a"}} interval={40} />
-              <YAxis tick={{fontSize:10,fill:"#71717a"}} />
-              <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} labelStyle={{color:"#a1a1aa"}} />
-              <ReferenceLine y={-2} stroke="#10b981" strokeDasharray="3 3" label={{value:"BUY: -2 SD",fill:"#10b981",fontSize:10}} />
-              <ReferenceLine y={2} stroke="#ef4444" strokeDasharray="3 3" label={{value:"SELL: +2 SD",fill:"#ef4444",fontSize:10}} />
-              <ReferenceLine y={0} stroke="#3f3f46" />
-              <Bar dataKey="macd_hist" name="MACD Hist" fill="#71717a" />
-              <Line type="monotone" dataKey="hist_zscore" stroke="#f59e0b" dot={false} strokeWidth={2} name="Z-Score" />
-              <Legend />
-            </ComposedChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-    </div>
-  );
+function drawStar(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color; ctx.beginPath();
+  for (var i = 0; i < 5; i++) {
+    var ang = (i * 4 * Math.PI / 5) - Math.PI/2;
+    var x = cx + r * Math.cos(ang);
+    var y = cy + r * Math.sin(ang);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath(); ctx.fill();
 }
 
-function PortfolioVisualizer() {
-  const frontier = generateFrontier();
-  const current = { x: 14.5, y: 8.2 };
-  const tangency = { x: 12.8, y: 11.5 };
-  const suggestions = { NVDA: 8.2, AMZN: 3.1, META: 2.4, MSFT: 1.8, AAPL: -4.5, INTC: -6.8, WBA: -3.2 };
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 shadow">
-      <div className="p-4 pb-2 flex items-center justify-between">
-        <span className="font-semibold">Portfolio Tangency Visualizer</span>
-        <div className="flex gap-2">
-          <Badge variant="info">Current Sharpe: 1.21</Badge>
-          <Badge variant="buy">Tangency Sharpe: 1.58</Badge>
-        </div>
-      </div>
-      <div className="p-4 pt-0 h-[340px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{top:10,right:20,bottom:10,left:10}}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-            <XAxis type="number" dataKey="x" name="Volatility" unit="%" tick={{fontSize:10,fill:"#71717a"}}
-              label={{value:"Risk (Volatility %)",position:"insideBottom",offset:-5,fill:"#71717a",fontSize:11}} />
-            <YAxis type="number" dataKey="y" name="Return" unit="%" tick={{fontSize:10,fill:"#71717a"}}
-              label={{value:"Return %",angle:-90,position:"insideLeft",fill:"#71717a",fontSize:11}} />
-            <Tooltip contentStyle={{backgroundColor:"#18181b",border:"1px solid #27272a",borderRadius:8}} />
-            <Scatter name="Frontier" data={frontier} fill="#3b82f6" line={{stroke:"#3b82f6",strokeWidth:2}} lineType="fitting" />
-            <Scatter name="Current" data={[current]} fill="#f59e0b" shape="diamond" />
-            <Scatter name="Tangency" data={[tangency]} fill="#10b981" shape="star" />
-            <Legend />
-          </ScatterChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="px-4 pb-4">
-        <div className="rounded-lg bg-zinc-900 p-3 space-y-2">
-          <div className="text-xs text-zinc-400 font-semibold">Rebalancing Suggestions</div>
-          <div className="grid grid-cols-3 gap-2">
-            {Object.entries(suggestions).map(([ticker, delta]) => (
-              <div key={ticker} className="flex justify-between text-sm font-mono">
-                <span>{ticker}</span>
-                <span className={delta > 0 ? "text-emerald-400" : "text-red-400"}>{delta > 0 ? "+" : ""}{delta.toFixed(2)}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+// ── Tab Listeners ───────────────────────────────────────────────────────────
+
+function setupTabListeners() {
+  var tabs = document.querySelectorAll("#mainTabs .tab-btn");
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].addEventListener("click", function() {
+      var tabName = this.getAttribute("data-tab");
+      state.activeTab = tabName;
+      var siblings = this.parentElement.querySelectorAll(".tab-btn");
+      for (var j = 0; j < siblings.length; j++) siblings[j].classList.remove("active");
+      this.classList.add("active");
+      document.getElementById("signalsView").classList.toggle("hidden", tabName !== "signals");
+      document.getElementById("portfolioView").classList.toggle("hidden", tabName !== "portfolio");
+      if (tabName === "portfolio") setTimeout(renderPortfolioChart, 50);
+    });
+  }
 }
 
-// ─── Main App ────────────────────────────────────────────────────────────────
-
-function App() {
-  const [selectedTicker, setSelectedTicker] = useState(null);
-  const [activeTab, setActiveTab] = useState("signals");
-  const [filter, setFilter] = useState("all");
-  const signals = useMemo(() => generateSignals(), []);
-  const thesis = useMemo(() => selectedTicker ? generateThesis(selectedTicker) : null, [selectedTicker]);
-  const vix = { current_vix: 22.4, vix_rsi2: 91.3, extreme_fear: true, lower_high_confirmed: true, regime: "extreme_fear_peaking", recommendation: "VIX spike peaking — Index buys (SPY/IWM) favoured." };
-
-  const buys = signals.filter(s => s.signal_arrow === "green_up").length;
-  const sells = signals.filter(s => s.signal_arrow === "red_down").length;
-
-  return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-zinc-800 px-6 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight">
-          Alpha-Beta<span className="text-zinc-500"> Decision Intelligence Terminal</span>
-        </h1>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1"><GreenArrow /><span className="text-emerald-400 font-semibold">{buys} Buy signals</span></span>
-            <span className="flex items-center gap-1"><RedArrow /><span className="text-red-400 font-semibold">{sells} Sell signals</span></span>
-          </div>
-          <div className="text-xs text-zinc-500 font-mono">{new Date().toLocaleTimeString()}</div>
-        </div>
-      </header>
-
-      <div className="px-6 pt-3"><VIXBanner vix={vix} /></div>
-
-      <div className="px-6 pt-3">
-        <div className="inline-flex h-9 items-center rounded-lg bg-zinc-900 p-1">
-          {[["signals","Signals + Analysis"],["portfolio","Portfolio Optimizer"]].map(([k,l]) => (
-            <button key={k} onClick={() => setActiveTab(k)}
-              className={`px-3 py-1.5 text-sm rounded-md font-medium transition-all ${activeTab===k?"bg-zinc-800 text-zinc-50 shadow":"text-zinc-400 hover:text-zinc-200"}`}>{l}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 px-6 py-4">
-        {activeTab === "signals" && (
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-4">
-              <SignalGrid signals={signals} onSelect={setSelectedTicker} selectedTicker={selectedTicker} filter={filter} onFilterChange={setFilter} />
-            </div>
-            <div className="col-span-8 space-y-4">
-              <AnalysisPane chartData={thesis?.chartData || []} ticker={selectedTicker || ""} />
-              {thesis && <ThesisCard thesis={thesis} />}
-            </div>
-          </div>
-        )}
-        {activeTab === "portfolio" && <PortfolioVisualizer />}
-      </div>
-    </div>
-  );
+function setupFilterListeners() {
+  var btns = document.querySelectorAll("#filterBar .filter-btn");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function() {
+      state.filter = this.getAttribute("data-filter");
+      var siblings = this.parentElement.querySelectorAll(".filter-btn");
+      for (var j = 0; j < siblings.length; j++) siblings[j].classList.remove("active");
+      this.classList.add("active");
+      renderSignalGrid();
+    });
+  }
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+function setupChartTabListeners() {
+  var btns = document.querySelectorAll("#chartTabs .tab-btn");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function() {
+      state.chartTab = this.getAttribute("data-chart");
+      var siblings = this.parentElement.querySelectorAll(".tab-btn");
+      for (var j = 0; j < siblings.length; j++) siblings[j].classList.remove("active");
+      this.classList.add("active");
+      if (state.thesis) renderChart();
+    });
+  }
+}
+
+// ── Boot ────────────────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", init);
 </script>
 </body>
 </html>
