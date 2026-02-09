@@ -60,11 +60,13 @@ class ThesisResponse(BaseModel):
 class SignalRow(BaseModel):
     ticker: str
     price: float
-    signal_direction: str
+    signal_direction: str  # "buy", "sell", "neutral"
+    signal_arrow: str  # "green_up", "red_down", "none"
     probability_score: float
     rsi_5: float
     macd_zscore: float
     vix_regime: str
+    reversal_pct: float  # historical reversal percentage for this signal
 
 
 class SignalGridResponse(BaseModel):
