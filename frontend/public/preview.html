@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Alpha-Beta Decision Intelligence Terminal v2.0</title>
+<title>Alpha-Beta Decision Intelligence Terminal v2.1</title>
 <style>
 /* ── Reset & Base ────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -140,15 +140,46 @@ header h1 span{color:#71717a}
 .w-full{width:100%}
 .hidden{display:none}
 .empty-chart{display:flex;align-items:center;justify-content:center;height:360px;color:#71717a}
+
+/* ── v2.1 additions ─────────────────────────────────────────────────────── */
+.search-bar{display:flex;gap:8px;margin-top:8px;margin-bottom:4px}
+.search-input{flex:1;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 10px;font-size:12px;color:#fafafa;outline:none}
+.search-input:focus{border-color:#10b981}
+.sector-select{background:#18181b;border:1px solid #27272a;border-radius:6px;padding:4px 8px;font-size:12px;color:#fafafa;outline:none;cursor:pointer}
+.sort-header{cursor:pointer;user-select:none;transition:color .15s}
+.sort-header:hover{color:#fafafa}
+.extreme-row{background:rgba(239,68,68,.06)}
+.pinned-row{border-left:2px solid #f59e0b}
+.notification-bell{position:relative;cursor:pointer;padding:4px 10px;background:#18181b;border:1px solid #27272a;border-radius:6px;font-size:12px;color:#a1a1aa;transition:background .15s}
+.notification-bell:hover{background:#27272a;color:#fafafa}
+.notification-badge{position:absolute;top:-4px;right:-4px;background:#ef4444;color:white;font-size:9px;font-weight:700;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center}
+.notif-panel{position:fixed;top:56px;right:16px;width:380px;max-height:70vh;overflow-y:auto;z-index:100;border-radius:12px;border:1px solid #27272a;background:#09090b;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+.notif-item{padding:10px 12px;border-bottom:1px solid #18181b;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#18181b}
+.notif-item.unread{background:#0a1a12;border-left:3px solid #10b981}
+.export-btn{padding:4px 10px;background:#18181b;border:1px solid #27272a;border-radius:6px;font-size:12px;color:#a1a1aa;cursor:pointer;transition:background .15s}
+.export-btn:hover{background:#27272a;color:#fafafa}
+.tooltip-box{position:absolute;background:#18181b;border:1px solid #27272a;border-radius:6px;padding:6px 10px;font-size:11px;color:#a1a1aa;z-index:20;pointer-events:none;max-width:220px;white-space:normal}
+@media(max-width:768px){
+  header{flex-direction:column;gap:8px;padding:12px 16px}
+  .grid-container{grid-template-columns:1fr!important}
+  .main-content{padding:8px 12px 16px}
+  .thesis-stats-grid{grid-template-columns:1fr!important}
+  .rebalance-grid{grid-template-columns:1fr 1fr!important}
+}
 </style>
 </head>
 <body>
 
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header>
-  <h1>Alpha-Beta<span> Decision Intelligence Terminal</span> <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,.15);color:#34d399;vertical-align:middle">v2.0</span></h1>
+  <h1>Alpha-Beta<span> Decision Intelligence Terminal</span> <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,.15);color:#34d399;vertical-align:middle">v2.1</span></h1>
   <div class="header-right">
     <div class="header-signals" id="headerSignals"></div>
+    <button class="export-btn" id="csvExportBtn" title="Export signals to CSV">CSV</button>
+    <div style="position:relative;display:inline-block">
+      <button class="notification-bell" id="notifBell">Alerts<span class="notification-badge hidden" id="notifBadge">0</span></button>
+    </div>
     <div class="header-time mono" id="headerTime"></div>
   </div>
 </header>
@@ -172,10 +203,16 @@ header h1 span{color:#71717a}
       <!-- Left: Signal Grid -->
       <div class="card">
         <div class="card-header">
-          <div>
+          <div style="width:100%">
             <div class="flex items-center gap-4" style="justify-content:space-between">
               <h2 class="font-semibold">Signal Grid</h2>
               <span class="text-xs c-muted" id="tickerCount"></span>
+            </div>
+            <div class="search-bar">
+              <input type="text" class="search-input" id="searchInput" placeholder="Search ticker..." />
+              <select class="sector-select" id="sectorSelect">
+                <option value="">All Sectors</option>
+              </select>
             </div>
             <div class="filter-bar" id="filterBar">
               <button class="filter-btn active" data-filter="all">All</button>
@@ -190,13 +227,15 @@ header h1 span{color:#71717a}
               <thead>
                 <tr>
                   <th style="width:28px"></th>
-                  <th style="text-align:left">Ticker</th>
-                  <th>Price</th>
+                  <th class="sort-header" data-sort="ticker" style="text-align:left">Ticker</th>
+                  <th class="sort-header" data-sort="price">Price</th>
                   <th>Signal</th>
-                  <th>Prob %</th>
-                  <th>RSI(5)</th>
-                  <th>MACD-Z</th>
-                  <th>Rev %</th>
+                  <th class="sort-header" data-sort="probability_score">Prob %</th>
+                  <th class="sort-header" data-sort="rsi_5">RSI5</th>
+                  <th>RSI9</th>
+                  <th>RSI14</th>
+                  <th class="sort-header" data-sort="macd_zscore">MACD-Z</th>
+                  <th class="sort-header" data-sort="reversal_pct">Rev %</th>
                 </tr>
               </thead>
               <tbody id="signalBody"></tbody>
@@ -443,6 +482,22 @@ REAL_PRICES["BF.B"] = REAL_PRICES.BF_B || 52.00;
 // VIX real data (Feb 2026)
 var VIX_DATA = { current_vix: 16.50, vix_rsi2: 42.7, extreme_fear: false, lower_high_confirmed: false, regime: "normal" };
 
+// Sector mapping
+var SECTOR_MAP = {
+  AAPL:"Technology",MSFT:"Technology",AMZN:"Consumer Discretionary",GOOG:"Communication",GOOGL:"Communication",META:"Communication",NVDA:"Technology",
+  AVGO:"Technology",TSLA:"Consumer Discretionary",ORCL:"Technology",CRM:"Technology",ADBE:"Technology",CSCO:"Technology",INTC:"Technology",AMD:"Technology",
+  NFLX:"Communication",QCOM:"Technology",TXN:"Technology",NOW:"Technology",AMAT:"Technology",JPM:"Financials",BAC:"Financials",GS:"Financials",MS:"Financials",
+  V:"Financials",MA:"Financials",WFC:"Financials",BLK:"Financials",AXP:"Financials",C:"Financials",UNH:"Healthcare",JNJ:"Healthcare",LLY:"Healthcare",
+  PFE:"Healthcare",MRK:"Healthcare",ABT:"Healthcare",ABBV:"Healthcare",TMO:"Healthcare",DHR:"Healthcare",ISRG:"Healthcare",SYK:"Healthcare",BSX:"Healthcare",
+  PG:"Consumer Staples",KO:"Consumer Staples",PEP:"Consumer Staples",PM:"Consumer Staples",WMT:"Consumer Staples",COST:"Consumer Staples",
+  HD:"Consumer Discretionary",MCD:"Consumer Discretionary",NKE:"Consumer Discretionary",SBUX:"Consumer Discretionary",LOW:"Consumer Discretionary",
+  CAT:"Industrials",BA:"Industrials",HON:"Industrials",UNP:"Industrials",RTX:"Industrials",DE:"Industrials",LMT:"Industrials",GE:"Industrials",
+  XOM:"Energy",CVX:"Energy",COP:"Energy",EOG:"Energy",SLB:"Energy",NEE:"Utilities",DUK:"Utilities",SO:"Utilities",D:"Utilities",
+  PLD:"Real Estate",AMT:"Real Estate",EQIX:"Real Estate",LIN:"Materials",APD:"Materials",SHW:"Materials",TMUS:"Communication",T:"Communication",VZ:"Communication",DIS:"Communication"
+};
+var ALL_SECTORS = [];
+(function(){var m={};for(var k in SECTOR_MAP){m[SECTOR_MAP[k]]=1;}for(var s in m)ALL_SECTORS.push(s);ALL_SECTORS.sort();})();
+
 // ── Seeded Random & Data Generation ─────────────────────────────────────────
 
 function seededRandom(seed) {
@@ -583,10 +638,19 @@ function generateSignals() {
     var tickerBt = getTickerSpecificBacktest(ticker, phase3 ? "rsi_phase3" : (absZ > 2 ? "macd_washout" : "combined"));
     var revPct = tickerBt.sample_count > 0 ? tickerBt.reversal_pct : (phase3 ? 68 + Math.floor(r5 % 10) : (absZ > 2 ? 62 + Math.floor(absZ * 3) : 0));
 
+    // v2.1: detect extreme moves
+    var hist1d = macd.hist[last] - macd.hist[last-1];
+    var histSlice = [];
+    for (var j = Math.max(0, last-252); j < last; j++) histSlice.push(macd.hist[j+1] - macd.hist[j]);
+    var histMean = histSlice.reduce(function(a,b){return a+b;},0)/histSlice.length;
+    var histStd = Math.sqrt(histSlice.reduce(function(a,b){return a+(b-histMean)*(b-histMean);},0)/histSlice.length)||1;
+    var hist1dZ = (hist1d - histMean) / histStd;
+    var isExtreme = Math.abs(hist1dZ) > 2;
+
     return {
       ticker: ticker, price: closes[last], signal_direction: direction, signal_arrow: arrow,
-      probability_score: Math.min(score, 100), rsi_5: r5, macd_zscore: z,
-      reversal_pct: Math.min(revPct, 95)
+      probability_score: Math.min(score, 100), rsi_5: r5, rsi_9: r9, rsi_14: r14, macd_zscore: z,
+      reversal_pct: Math.min(revPct, 95), sector: SECTOR_MAP[ticker] || "Other", is_extreme_move: isExtreme
     };
   }).sort(function(a,b){ return b.probability_score - a.probability_score; });
 }
@@ -858,17 +922,28 @@ var state = {
   thesis: null,
   activeTab: "signals",
   chartTab: "price",
-  filter: "all"
+  filter: "all",
+  search: "",
+  sector: "",
+  sortField: "probability_score",
+  sortDir: "desc",
+  notifications: [],
+  notifOpen: false
 };
 
 function init() {
   state.signals = generateSignals();
+  generateNotifications();
   renderVIXBanner();
   renderHeader();
+  populateSectorSelect();
   renderSignalGrid();
   setupTabListeners();
   setupFilterListeners();
   setupChartTabListeners();
+  setupSearchAndSort();
+  setupNotifications();
+  setupCSVExport();
   renderPortfolio();
   setInterval(function() {
     document.getElementById("headerTime").textContent = new Date().toLocaleTimeString();
@@ -911,11 +986,29 @@ function renderVIXBanner() {
 }
 
 function renderSignalGrid() {
-  var filtered = state.filter === "all" ? state.signals :
-    state.signals.filter(function(s) {
-      return s.signal_arrow === (state.filter === "buy" ? "green_up" : "red_down");
+  var filtered = state.signals.slice();
+  // Search filter
+  if (state.search) {
+    var s = state.search.toUpperCase();
+    filtered = filtered.filter(function(r){ return r.ticker.indexOf(s) >= 0; });
+  }
+  // Sector filter
+  if (state.sector) {
+    filtered = filtered.filter(function(r){ return r.sector === state.sector; });
+  }
+  // Signal direction filter
+  if (state.filter !== "all") {
+    filtered = filtered.filter(function(r) {
+      return r.signal_arrow === (state.filter === "buy" ? "green_up" : "red_down");
     });
-  document.getElementById("tickerCount").textContent = "S&P 500 \u00b7 " + filtered.length + " tickers";
+  }
+  // Sort
+  var sf = state.sortField, sd = state.sortDir === "asc" ? 1 : -1;
+  filtered.sort(function(a, b) {
+    if (sf === "ticker") return a.ticker.localeCompare(b.ticker) * sd;
+    return ((a[sf] || 0) - (b[sf] || 0)) * sd;
+  });
+  document.getElementById("tickerCount").textContent = filtered.length + " of " + state.signals.length + " tickers";
   var tbody = document.getElementById("signalBody");
   var html = "";
   for (var i = 0; i < filtered.length; i++) {
@@ -927,14 +1020,19 @@ function renderSignalGrid() {
     var probClass = s.probability_score >= 60 ? "c-green" : s.probability_score >= 35 ? "c-amber" : "c-muted";
     var zClass = s.macd_zscore < -2 ? "c-green" : s.macd_zscore > 2 ? "c-red" : "c-muted";
     var revClass = s.reversal_pct > 60 ? "c-green" : s.reversal_pct > 0 ? "c-amber" : "c-dim";
+    var rsi9Class = s.rsi_9 < 35 ? "c-green" : "";
+    var rsi14Class = s.rsi_14 < 40 ? "c-green" : "";
     var selected = state.selectedTicker === s.ticker ? " selected" : "";
-    html += '<tr class="' + selected + '" data-ticker="' + s.ticker + '">' +
+    var extraCls = s.is_extreme_move ? " extreme-row" : "";
+    html += '<tr class="' + selected + extraCls + '" data-ticker="' + s.ticker + '">' +
       '<td>' + arrowHtml + '</td>' +
-      '<td class="mono font-semibold">' + s.ticker + '</td>' +
+      '<td class="mono font-semibold">' + s.ticker + (s.is_extreme_move ? ' <span class="c-red">!</span>' : '') + '</td>' +
       '<td class="mono">$' + s.price.toFixed(2) + '</td>' +
       '<td><span class="badge ' + badgeClass + '">' + s.signal_direction.toUpperCase() + '</span></td>' +
       '<td class="mono font-semibold ' + probClass + '">' + s.probability_score.toFixed(1) + '</td>' +
       '<td class="mono">' + s.rsi_5.toFixed(1) + '</td>' +
+      '<td class="mono ' + rsi9Class + '">' + s.rsi_9.toFixed(1) + '</td>' +
+      '<td class="mono ' + rsi14Class + '">' + s.rsi_14.toFixed(1) + '</td>' +
       '<td class="mono ' + zClass + '">' + s.macd_zscore.toFixed(2) + '</td>' +
       '<td class="mono ' + revClass + '">' + (s.reversal_pct > 0 ? s.reversal_pct + "%" : "\u2014") + '</td>' +
       '</tr>';
@@ -945,6 +1043,14 @@ function renderSignalGrid() {
     rows[i].addEventListener("click", function() {
       selectTicker(this.getAttribute("data-ticker"));
     });
+  }
+  // Update sort indicators
+  var headers = document.querySelectorAll(".sort-header");
+  for (var i = 0; i < headers.length; i++) {
+    var h = headers[i];
+    var field = h.getAttribute("data-sort");
+    var base = h.textContent.replace(/ [↑↓]/g, "");
+    h.textContent = base + (field === state.sortField ? (state.sortDir === "asc" ? " ↑" : " ↓") : "");
   }
 }
 
@@ -1539,6 +1645,169 @@ function renderEventsPanel(ticker) {
   }
 
   body.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  v2.1 FEATURES: Search, Sort, Notifications, CSV Export
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function populateSectorSelect() {
+  var sel = document.getElementById("sectorSelect");
+  for (var i = 0; i < ALL_SECTORS.length; i++) {
+    var opt = document.createElement("option");
+    opt.value = ALL_SECTORS[i]; opt.textContent = ALL_SECTORS[i];
+    sel.appendChild(opt);
+  }
+}
+
+function setupSearchAndSort() {
+  var searchInput = document.getElementById("searchInput");
+  searchInput.addEventListener("input", function() {
+    state.search = this.value;
+    renderSignalGrid();
+  });
+  var sectorSelect = document.getElementById("sectorSelect");
+  sectorSelect.addEventListener("change", function() {
+    state.sector = this.value;
+    renderSignalGrid();
+  });
+  var sortHeaders = document.querySelectorAll(".sort-header");
+  for (var i = 0; i < sortHeaders.length; i++) {
+    sortHeaders[i].addEventListener("click", function() {
+      var field = this.getAttribute("data-sort");
+      if (state.sortField === field) {
+        state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        state.sortField = field;
+        state.sortDir = field === "ticker" ? "asc" : "desc";
+      }
+      renderSignalGrid();
+    });
+  }
+}
+
+// ── Notification System ─────────────────────────────────────────────────────
+
+function generateNotifications() {
+  var notifs = [];
+  var id = 0;
+  // Generate from signals
+  for (var i = 0; i < state.signals.length && notifs.length < 15; i++) {
+    var s = state.signals[i];
+    if (s.is_extreme_move) {
+      notifs.push({ id: "n" + (id++), ticker: s.ticker, type: "macd_extreme", title: "Extreme MACD Move",
+        message: s.ticker + " MACD histogram change beyond 2 SD (z=" + s.macd_zscore.toFixed(2) + ")",
+        severity: "critical", created_at: new Date(Date.now() - Math.random()*3600000).toISOString(), read: false });
+    }
+    if (s.probability_score >= 60 && s.signal_direction === "buy") {
+      notifs.push({ id: "n" + (id++), ticker: s.ticker, type: "phase3_trigger", title: "Phase 3 Signal",
+        message: "Buy signal at " + s.probability_score.toFixed(0) + "% probability — RSI alignment + MACD washout",
+        severity: "warning", created_at: new Date(Date.now() - Math.random()*7200000).toISOString(), read: false });
+    }
+  }
+  state.notifications = notifs.slice(0, 12);
+  updateNotifBadge();
+}
+
+function updateNotifBadge() {
+  var badge = document.getElementById("notifBadge");
+  var count = state.notifications.filter(function(n){return !n.read;}).length;
+  if (count > 0) {
+    badge.textContent = count > 9 ? "9+" : count;
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+}
+
+function setupNotifications() {
+  var bell = document.getElementById("notifBell");
+  bell.addEventListener("click", function(e) {
+    e.stopPropagation();
+    state.notifOpen = !state.notifOpen;
+    renderNotifPanel();
+  });
+  document.addEventListener("click", function() {
+    if (state.notifOpen) { state.notifOpen = false; renderNotifPanel(); }
+  });
+}
+
+function renderNotifPanel() {
+  var existing = document.getElementById("notifPanel");
+  if (existing) existing.remove();
+  if (!state.notifOpen) return;
+  var panel = document.createElement("div");
+  panel.id = "notifPanel";
+  panel.className = "notif-panel";
+  panel.addEventListener("click", function(e){ e.stopPropagation(); });
+  var html = '<div style="padding:12px 16px;border-bottom:1px solid #27272a;display:flex;justify-content:space-between;align-items:center">' +
+    '<span class="font-semibold">Notifications</span>' +
+    '<button class="text-xs c-green" style="background:none;border:none;cursor:pointer" id="markAllRead">Mark all read</button></div>';
+  if (state.notifications.length === 0) {
+    html += '<div style="padding:24px;text-align:center;color:#71717a">No notifications</div>';
+  } else {
+    for (var i = 0; i < state.notifications.length; i++) {
+      var n = state.notifications[i];
+      var sevColor = n.severity === "critical" ? "c-red" : n.severity === "warning" ? "c-amber" : "c-blue";
+      var typeLabel = n.type === "phase3_trigger" ? "P3" : n.type === "macd_extreme" ? "MX" : "i";
+      html += '<div class="notif-item' + (n.read ? '' : ' unread') + '" data-notif-id="' + n.id + '">' +
+        '<div class="flex items-center gap-2">' +
+          '<span class="' + sevColor + ' mono text-xs font-bold" style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px">' + typeLabel + '</span>' +
+          '<span class="mono font-semibold text-xs">' + n.ticker + '</span>' +
+          '<span class="text-xs c-muted">' + n.title + '</span>' +
+          (n.read ? '' : '<span style="width:6px;height:6px;border-radius:50%;background:#10b981;flex-shrink:0"></span>') +
+        '</div>' +
+        '<div class="text-xs c-muted" style="margin-top:2px">' + n.message + '</div>' +
+        '<div class="text-xs" style="margin-top:2px;color:#3f3f46">' + new Date(n.created_at).toLocaleString() + '</div>' +
+      '</div>';
+    }
+  }
+  panel.innerHTML = html;
+  document.body.appendChild(panel);
+  // Mark individual as read on click
+  var items = panel.querySelectorAll(".notif-item");
+  for (var i = 0; i < items.length; i++) {
+    items[i].addEventListener("click", function() {
+      var nid = this.getAttribute("data-notif-id");
+      for (var j = 0; j < state.notifications.length; j++) {
+        if (state.notifications[j].id === nid) state.notifications[j].read = true;
+      }
+      updateNotifBadge();
+      renderNotifPanel();
+    });
+  }
+  // Mark all read
+  var markAllBtn = document.getElementById("markAllRead");
+  if (markAllBtn) {
+    markAllBtn.addEventListener("click", function() {
+      for (var j = 0; j < state.notifications.length; j++) state.notifications[j].read = true;
+      updateNotifBadge();
+      renderNotifPanel();
+    });
+  }
+}
+
+// ── CSV Export ──────────────────────────────────────────────────────────────
+
+function setupCSVExport() {
+  document.getElementById("csvExportBtn").addEventListener("click", function() {
+    var headers = ["Ticker","Price","Signal","Probability","RSI5","RSI9","RSI14","MACD-Z","Reversal%","Sector","Extreme"];
+    var rows = [headers.join(",")];
+    for (var i = 0; i < state.signals.length; i++) {
+      var s = state.signals[i];
+      rows.push([s.ticker, s.price.toFixed(2), s.signal_direction, s.probability_score.toFixed(1),
+        s.rsi_5.toFixed(1), s.rsi_9.toFixed(1), s.rsi_14.toFixed(1), s.macd_zscore.toFixed(2),
+        s.reversal_pct, s.sector, s.is_extreme_move].join(","));
+    }
+    var csv = rows.join("\n");
+    var blob = new Blob([csv], { type: "text/csv" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "signals_" + new Date().toISOString().slice(0, 10) + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────

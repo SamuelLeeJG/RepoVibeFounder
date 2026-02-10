@@ -11,19 +11,31 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.api.models import (
     BacktestDetailResponse,
+    BenchmarkComparison,
+    EarningsSignalResponse,
     EventModel,
+    ExportFormat,
     InsiderTradeModel,
+    MACDExtremeResponse,
     NewsArticleModel,
+    NotificationModel,
     PoliticianTradeModel,
+    PortfolioAddRequest,
     PortfolioPointModel,
+    PortfolioResponse,
+    PortfolioSaveRequest,
+    RefreshConfigResponse,
     ShockEventModel,
     SignalGridResponse,
+    SignalGridResponseV2,
     SignalRow,
+    SignalRowV2,
     TangencyResponse,
     ThesisResponse,
     ThresholdCheckResponse,
     TradeImpactRequest,
     TradeImpactResponse,
+    UpcomingEarningsItem,
     VIXInfo,
 )
 from backend.api.thesis_generator import ThesisGenerator
@@ -36,6 +48,11 @@ from backend.integrations.fmp_client import FMPClient
 from backend.integrations.news_client import NewsClient
 from backend.integrations.quiver_client import QuiverClient
 from backend.services.backtest_service import get_historical_win_rate
+from backend.services.earnings_signal import EarningsSignalDetector
+from backend.services.macd_extreme_detector import MACDExtremeDetector
+from backend.services.notification_service import notification_service
+from backend.services.portfolio_service import PortfolioService
+from backend.services.rate_limiter import refresh_manager
 from backend.services.shock_detector import MACDVelocityShockDetector
 
 router = APIRouter(prefix="/api/v1")
@@ -44,6 +61,33 @@ fmp = FMPClient()
 news_client = NewsClient()
 quiver = QuiverClient()
 shock_detector = MACDVelocityShockDetector()
+extreme_detector = MACDExtremeDetector()
+earnings_detector = EarningsSignalDetector()
+portfolio_service = PortfolioService()
+
+# Sector mapping for signal grid filtering
+SECTOR_MAP: dict[str, str] = {
+    "AAPL": "Technology", "MSFT": "Technology", "GOOG": "Technology", "GOOGL": "Technology",
+    "AMZN": "Consumer Discretionary", "NVDA": "Technology", "META": "Technology", "TSLA": "Consumer Discretionary",
+    "JPM": "Financials", "V": "Financials", "JNJ": "Healthcare", "UNH": "Healthcare",
+    "HD": "Consumer Discretionary", "PG": "Consumer Staples", "MA": "Financials", "BAC": "Financials",
+    "XOM": "Energy", "CVX": "Energy", "ABBV": "Healthcare", "KO": "Consumer Staples",
+    "PEP": "Consumer Staples", "MRK": "Healthcare", "LLY": "Healthcare", "COST": "Consumer Staples",
+    "TMO": "Healthcare", "AVGO": "Technology", "WMT": "Consumer Staples", "CSCO": "Technology",
+    "ACN": "Technology", "CRM": "Technology", "ABT": "Healthcare", "ADBE": "Technology",
+    "AMD": "Technology", "INTC": "Technology", "NFLX": "Communication Services", "DIS": "Communication Services",
+    "CMCSA": "Communication Services", "VZ": "Communication Services", "T": "Communication Services",
+    "NEE": "Utilities", "D": "Utilities", "SO": "Utilities", "DUK": "Utilities",
+    "PFE": "Healthcare", "BMY": "Healthcare", "AMGN": "Healthcare", "GILD": "Healthcare",
+    "GS": "Financials", "MS": "Financials", "C": "Financials", "WFC": "Financials",
+    "BLK": "Financials", "SCHW": "Financials", "USB": "Financials", "PNC": "Financials",
+    "CAT": "Industrials", "DE": "Industrials", "UNP": "Industrials", "RTX": "Industrials",
+    "BA": "Industrials", "HON": "Industrials", "GE": "Industrials", "MMM": "Industrials",
+    "LIN": "Materials", "APD": "Materials", "SHW": "Materials", "NUE": "Materials",
+    "SPG": "Real Estate", "PLD": "Real Estate", "AMT": "Real Estate", "CCI": "Real Estate",
+    "ORCL": "Technology", "NOW": "Technology", "QCOM": "Technology", "TXN": "Technology",
+    "INTU": "Technology", "AMAT": "Technology", "MU": "Technology", "LRCX": "Technology",
+}
 
 # S&P 500 tickers
 SP500_TICKERS = [
@@ -109,19 +153,33 @@ async def get_thesis(ticker: str) -> ThesisResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/signals", response_model=SignalGridResponse)
+@router.get("/signals", response_model=SignalGridResponseV2)
 async def get_signal_grid(
     tickers: Optional[str] = Query(
         default=None,
         description="Comma-separated tickers. Defaults to S&P 100 subset.",
     ),
     limit: int = Query(default=503, ge=1, le=503),
-) -> SignalGridResponse:
-    """Return signal rows for the grid view."""
+    search: Optional[str] = Query(default=None, description="Search filter for ticker names"),
+    sector: Optional[str] = Query(default=None, description="Filter by sector"),
+    sort_by: str = Query(default="probability_score", description="Sort field"),
+    sort_dir: str = Query(default="desc", description="asc or desc"),
+) -> SignalGridResponseV2:
+    """Return signal rows for the grid view with search, sector filter, and sorting."""
     if tickers:
         ticker_list = [t.strip().upper() for t in tickers.split(",")]
     else:
         ticker_list = SP500_TICKERS[:limit]
+
+    # Apply search filter
+    if search:
+        search_upper = search.upper()
+        ticker_list = [t for t in ticker_list if search_upper in t]
+
+    # Apply sector filter
+    if sector:
+        sector_lower = sector.lower()
+        ticker_list = [t for t in ticker_list if SECTOR_MAP.get(t, "").lower() == sector_lower]
 
     reversal = ReversalAnalyzer()
     macd_analyzer = MACDZScoreAnalyzer()
@@ -129,7 +187,7 @@ async def get_signal_grid(
     vix_df = await fetch_vix()
     vix_status = vix_filter.analyze(vix_df)
 
-    rows: list[SignalRow] = []
+    rows: list[SignalRowV2] = []
     for t in ticker_list:
         try:
             df = await fetch_ohlcv(t)
@@ -140,7 +198,6 @@ async def get_signal_grid(
             active = bool(last.get("phase3", False))
             zscore = macd_data["zscore"]
 
-            # Direction: buy on washout/RSI alignment, sell on exhaustion
             if macd_data["regime"] == "statistical_washout" or active:
                 direction = "buy"
             elif macd_data["regime"] == "exhaustion":
@@ -148,9 +205,6 @@ async def get_signal_grid(
             else:
                 direction = "neutral"
 
-            # Arrow indicator per PRD:
-            #   Green arrow (buy): MACD-Hist Z < -2 SD OR RSI Phase-3 active
-            #   Red arrow (sell):  MACD-Hist Z > +2 SD (exhaustion)
             if zscore < -2.0 or active:
                 arrow = "green_up"
             elif zscore > 2.0:
@@ -158,7 +212,6 @@ async def get_signal_grid(
             else:
                 arrow = "none"
 
-            # Quick probability estimate
             score = 0.0
             if active:
                 score += 30
@@ -171,24 +224,47 @@ async def get_signal_grid(
                 score += 15
             score = min(score, 100)
 
-            # Quick reversal backtest
             bt = reversal.backtest_reversal(df, vix_df)
 
+            # Check for extreme MACD moves
+            extreme = extreme_detector.detect(df, t)
+            is_extreme = extreme.get("is_extreme_now", False)
+
             rows.append(
-                SignalRow(
+                SignalRowV2(
                     ticker=t,
                     price=round(float(df["close"].iloc[-1]), 2),
                     signal_direction=direction,
                     signal_arrow=arrow,
                     probability_score=round(score, 1),
                     rsi_5=round(float(last["rsi_5"]), 2) if not pd.isna(last["rsi_5"]) else 50.0,
+                    rsi_9=round(float(last["rsi_9"]), 2) if not pd.isna(last.get("rsi_9", float("nan"))) else 50.0,
+                    rsi_14=round(float(last["rsi_14"]), 2) if not pd.isna(last.get("rsi_14", float("nan"))) else 50.0,
                     macd_zscore=macd_data["zscore"],
                     vix_regime=vix_status.regime,
                     reversal_pct=bt["reversal_pct"],
+                    sector=SECTOR_MAP.get(t, ""),
+                    is_extreme_move=is_extreme,
                 )
             )
         except Exception:
             continue
+
+    # Sort
+    reverse = sort_dir == "desc"
+    if sort_by == "ticker":
+        rows.sort(key=lambda r: r.ticker, reverse=reverse)
+    elif sort_by == "signal_direction":
+        order = {"buy": 0, "sell": 1, "neutral": 2}
+        rows.sort(key=lambda r: order.get(r.signal_direction, 3), reverse=reverse)
+    elif sort_by == "rsi_5":
+        rows.sort(key=lambda r: r.rsi_5, reverse=reverse)
+    elif sort_by == "price":
+        rows.sort(key=lambda r: r.price, reverse=reverse)
+    elif sort_by == "macd_zscore":
+        rows.sort(key=lambda r: r.macd_zscore, reverse=reverse)
+    else:
+        rows.sort(key=lambda r: r.probability_score, reverse=reverse)
 
     vix_info = VIXInfo(
         current_vix=vix_status.current_vix,
@@ -199,10 +275,11 @@ async def get_signal_grid(
         recommendation=vix_status.recommendation,
     )
 
-    return SignalGridResponse(
-        signals=sorted(rows, key=lambda r: r.probability_score, reverse=True),
+    return SignalGridResponseV2(
+        signals=rows,
         vix=vix_info,
         updated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+        refresh_intervals=refresh_manager.get_refresh_config(),
     )
 
 
@@ -531,3 +608,111 @@ async def get_rsi_history(ticker: str, days: int = Query(default=3, ge=1, le=30)
         })
 
     return {"ticker": ticker, "days": days, "history": daily_data}
+
+
+# ── v2.1 Routes ──
+
+
+@router.get("/macd-extreme/{ticker}", response_model=MACDExtremeResponse)
+async def get_macd_extreme(ticker: str):
+    """Get 1-day and 3-day MACD histogram extreme move analysis."""
+    ticker = ticker.upper()
+    df = await fetch_ohlcv(ticker)
+    result = extreme_detector.detect(df, ticker)
+    return MACDExtremeResponse(**result)
+
+
+@router.get("/earnings-signal/{ticker}", response_model=EarningsSignalResponse)
+async def get_earnings_signal(ticker: str):
+    """Get earnings signal analysis: pre-earnings momentum + insider/politician cross-ref."""
+    ticker = ticker.upper()
+    df = await fetch_ohlcv(ticker)
+    result = await earnings_detector.analyze_single(ticker, df)
+    return EarningsSignalResponse(**result)
+
+
+@router.get("/upcoming-earnings", response_model=list[UpcomingEarningsItem])
+async def get_upcoming_earnings(days: int = Query(default=7, ge=1, le=30)):
+    """Get stocks with upcoming earnings in the next N days with signal analysis."""
+    results = await earnings_detector.scan_upcoming_earnings(SP500_TICKERS, days)
+    return [UpcomingEarningsItem(**r) for r in results[:30]]
+
+
+@router.get("/notifications/{user_id}", response_model=list[NotificationModel])
+async def get_notifications(user_id: str, unread_only: bool = Query(default=False)):
+    """Get notifications for a user."""
+    if unread_only:
+        return notification_service.get_unread(user_id)
+    return notification_service.get_all(user_id)
+
+
+@router.post("/notifications/{user_id}/read/{notification_id}")
+async def mark_notification_read(user_id: str, notification_id: str):
+    """Mark a notification as read."""
+    success = notification_service.mark_read(user_id, notification_id)
+    return {"success": success}
+
+
+@router.post("/notifications/{user_id}/read-all")
+async def mark_all_read(user_id: str):
+    """Mark all notifications as read."""
+    notification_service.mark_all_read(user_id)
+    return {"success": True}
+
+
+@router.get("/notifications/{user_id}/count")
+async def notification_count(user_id: str):
+    """Get unread notification count."""
+    return {"count": notification_service.unread_count(user_id)}
+
+
+@router.get("/refresh-config", response_model=RefreshConfigResponse)
+async def get_refresh_config():
+    """Get the refresh interval configuration for the frontend."""
+    config = refresh_manager.get_refresh_config()
+    return RefreshConfigResponse(**config)
+
+
+@router.get("/export/signals")
+async def export_signals_csv(
+    tickers: Optional[str] = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=503),
+):
+    """Export signal grid data as CSV."""
+    from fastapi.responses import StreamingResponse
+    import io, csv
+
+    # Get signal data
+    grid = await get_signal_grid(tickers=tickers, limit=limit)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Ticker", "Price", "Signal", "Probability %", "RSI(5)", "RSI(9)", "RSI(14)",
+        "MACD Z-Score", "VIX Regime", "Reversal %", "Sector", "Extreme Move",
+    ])
+    for s in grid.signals:
+        writer.writerow([
+            s.ticker, s.price, s.signal_direction, s.probability_score,
+            s.rsi_5, s.rsi_9, s.rsi_14, s.macd_zscore, s.vix_regime,
+            s.reversal_pct, s.sector, s.is_extreme_move,
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=signals_{dt.date.today().isoformat()}.csv"},
+    )
+
+
+@router.get("/sectors")
+async def get_sectors():
+    """Get list of available sectors for filtering."""
+    sectors = sorted(set(SECTOR_MAP.values()))
+    return {"sectors": sectors}
+
+
+@router.get("/cache-stats")
+async def get_cache_stats():
+    """Get rate limiter / cache statistics."""
+    return refresh_manager.get_stats()

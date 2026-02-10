@@ -169,3 +169,122 @@ class PoliticianTradeModel(BaseModel):
 class MultiTimeframeRequest(BaseModel):
     ticker: str
     timeframe: str = "1Hour"  # 1Hour | 1Day | 1Week | 1Month
+
+
+# ── v2.1 models ──
+
+
+class SignalRowV2(BaseModel):
+    """Extended signal row with RSI 5/9/14, sector, earnings date, reversal %."""
+    ticker: str
+    price: float
+    signal_direction: str
+    signal_arrow: str
+    probability_score: float
+    rsi_5: float
+    rsi_9: float
+    rsi_14: float
+    macd_zscore: float
+    vix_regime: str
+    reversal_pct: float
+    sector: str = ""
+    next_earnings_date: str | None = None
+    is_extreme_move: bool = False
+
+
+class SignalGridResponseV2(BaseModel):
+    signals: list[SignalRowV2]
+    vix: VIXInfo
+    updated_at: str
+    refresh_intervals: dict[str, int] = {}
+
+
+class MACDExtremeResponse(BaseModel):
+    ticker: str
+    current_hist: float
+    current_hist_zscore: float
+    one_day: dict
+    three_day: dict
+    is_extreme_now: bool
+    events: list[dict]
+
+
+class EarningsSignalResponse(BaseModel):
+    ticker: str
+    has_upcoming_earnings: bool
+    earnings_date: str | None = None
+    days_until_earnings: int | None = None
+    signals: list[dict]
+    signal_strength: int
+    recommendation: str = ""
+    pre_earnings_momentum: dict | None = None
+
+
+class UpcomingEarningsItem(BaseModel):
+    ticker: str
+    earnings_date: str
+    eps_estimated: float | None = None
+    revenue_estimated: float | None = None
+    signals: list[dict]
+    signal_strength: int
+    recommendation: str = ""
+
+
+class PortfolioHolding(BaseModel):
+    ticker: str
+    weight: float  # percentage 0-100
+    value: float | None = None  # dollar value
+
+
+class PortfolioSaveRequest(BaseModel):
+    holdings: dict[str, float]  # ticker -> weight or dollar value
+    total_value: float | None = None
+    mode: str = "pct"  # 'pct' or 'dollar'
+
+
+class PortfolioAddRequest(BaseModel):
+    ticker: str
+    amount: float  # weight or dollar value
+    mode: str = "pct"  # 'pct' or 'dollar'
+
+
+class PortfolioResponse(BaseModel):
+    tickers: list[str]
+    weights: dict[str, float]
+    tangency_weights: dict[str, float] | None = None
+    sharpe: float
+    total_value: float | None = None
+
+
+class BenchmarkComparison(BaseModel):
+    portfolio: dict
+    spy: dict | None = None
+    qqq: dict | None = None
+
+
+class NotificationModel(BaseModel):
+    id: str
+    ticker: str
+    type: str
+    title: str
+    message: str
+    severity: str
+    created_at: str
+    read: bool
+    data: dict = {}
+
+
+class RefreshConfigResponse(BaseModel):
+    prices: int
+    signals: int
+    thesis: int
+    news: int
+    events: int
+    insider_trades: int
+    politician_trades: int
+    portfolio: int
+    company_profile: int
+
+
+class ExportFormat(BaseModel):
+    format: str = "csv"  # csv only for now

@@ -19,7 +19,7 @@ from backend.auth.jwt import (
     verify_refresh_token,
 )
 from backend.db.database import get_db
-from backend.db.models import AllowedInvite, User
+from backend.db.models import AccessRequest, AllowedInvite, PasswordResetToken, User
 
 auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -72,6 +72,31 @@ class UserProfile(BaseModel):
 
 class PinnedTickersRequest(BaseModel):
     tickers: list[str]  # max 7
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str  # UUID string
+    new_password: str
+
+
+class AccessRequestCreate(BaseModel):
+    email: str
+    display_name: str
+    reason: str = ""
+
+
+class AccessRequestReview(BaseModel):
+    request_id: str  # UUID string
+    action: str  # "approve" or "deny"
+
+
+class AdminUserUpdate(BaseModel):
+    is_active: bool | None = None
+    role: str | None = None
 
 
 # ── Routes ──
@@ -212,3 +237,217 @@ async def list_invites(admin: User = Depends(require_admin), db: AsyncSession = 
         }
         for inv in invites
     ]
+
+
+# ── Password Reset ──
+
+
+@auth_router.post("/password-reset/request")
+async def request_password_reset(req: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
+    """Request a password reset token (sent to email in production)."""
+    result = await db.execute(select(User).where(User.email == req.email.lower()))
+    user = result.scalar_one_or_none()
+    if user is None:
+        # Don't reveal whether email exists
+        return {"message": "If this email is registered, a reset link has been sent."}
+
+    # Create reset token (expires in 1 hour)
+    reset = PasswordResetToken(
+        user_id=user.id,
+        expires_at=dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1),
+    )
+    db.add(reset)
+    await db.flush()
+
+    # In production: send email with reset link containing reset.token
+    return {
+        "message": "If this email is registered, a reset link has been sent.",
+        "reset_token": str(reset.token),  # Only exposed in dev/sandbox
+    }
+
+
+@auth_router.post("/password-reset/confirm")
+async def confirm_password_reset(req: PasswordResetConfirm, db: AsyncSession = Depends(get_db)):
+    """Reset password using a valid reset token."""
+    try:
+        token_uuid = uuid.UUID(req.token)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid token format")
+
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token == token_uuid,
+            PasswordResetToken.used == False,
+        )
+    )
+    reset = result.scalar_one_or_none()
+    if reset is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if reset.expires_at < dt.datetime.now(dt.timezone.utc):
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    # Update user password
+    user_result = await db.execute(select(User).where(User.id == reset.user_id))
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=400, detail="User not found")
+
+    user.hashed_password = pwd_context.hash(req.new_password)
+    reset.used = True
+    await db.flush()
+
+    return {"message": "Password reset successfully"}
+
+
+# ── Request Access (non-invite flow) ──
+
+
+@auth_router.post("/request-access")
+async def request_access(req: AccessRequestCreate, db: AsyncSession = Depends(get_db)):
+    """Request access to the platform (non-invite flow — requires admin approval)."""
+    # Check if already registered
+    existing = await db.execute(select(User).where(User.email == req.email.lower()))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    # Check if already requested
+    existing_req = await db.execute(
+        select(AccessRequest).where(
+            AccessRequest.email == req.email.lower(),
+            AccessRequest.status == "pending",
+        )
+    )
+    if existing_req.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Access request already pending")
+
+    access_req = AccessRequest(
+        email=req.email.lower(),
+        display_name=req.display_name,
+        reason=req.reason,
+    )
+    db.add(access_req)
+    await db.flush()
+
+    return {"message": "Access request submitted. You will be notified when approved.", "request_id": str(access_req.id)}
+
+
+# ── Admin: Manage Access Requests ──
+
+
+@auth_router.get("/admin/access-requests")
+async def list_access_requests(
+    status_filter: str = "pending",
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only: list access requests."""
+    query = select(AccessRequest).order_by(AccessRequest.created_at.desc())
+    if status_filter != "all":
+        query = query.where(AccessRequest.status == status_filter)
+    result = await db.execute(query)
+    requests = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "email": r.email,
+            "display_name": r.display_name,
+            "reason": r.reason,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in requests
+    ]
+
+
+@auth_router.post("/admin/access-requests/review")
+async def review_access_request(
+    req: AccessRequestReview,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only: approve or deny an access request."""
+    try:
+        req_id = uuid.UUID(req.request_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid request ID")
+
+    result = await db.execute(select(AccessRequest).where(AccessRequest.id == req_id))
+    access_req = result.scalar_one_or_none()
+    if access_req is None:
+        raise HTTPException(status_code=404, detail="Access request not found")
+
+    if access_req.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Request already {access_req.status}")
+
+    if req.action == "approve":
+        access_req.status = "approved"
+        access_req.reviewed_by = admin.id
+        access_req.reviewed_at = dt.datetime.now(dt.timezone.utc)
+        # Create an invite for the approved user
+        invite = AllowedInvite(email=access_req.email, invited_by=admin.id)
+        db.add(invite)
+        await db.flush()
+        return {
+            "message": f"Approved. Invite code generated for {access_req.email}",
+            "invite_code": str(invite.invite_code),
+        }
+    elif req.action == "deny":
+        access_req.status = "denied"
+        access_req.reviewed_by = admin.id
+        access_req.reviewed_at = dt.datetime.now(dt.timezone.utc)
+        await db.flush()
+        return {"message": f"Denied access for {access_req.email}"}
+    else:
+        raise HTTPException(status_code=400, detail="Action must be 'approve' or 'deny'")
+
+
+# ── Admin: User Management ──
+
+
+@auth_router.get("/admin/users")
+async def list_users(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    """Admin-only: list all users."""
+    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    users = result.scalars().all()
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "display_name": u.display_name,
+            "role": u.role,
+            "is_active": u.is_active,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    ]
+
+
+@auth_router.put("/admin/users/{user_id}")
+async def update_user(
+    user_id: str,
+    req: AdminUserUpdate,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin-only: update a user's status or role."""
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if req.is_active is not None:
+        user.is_active = req.is_active
+    if req.role is not None and req.role in ("admin", "member"):
+        user.role = req.role
+
+    await db.flush()
+    return {"message": f"Updated user {user.email}", "is_active": user.is_active, "role": user.role}

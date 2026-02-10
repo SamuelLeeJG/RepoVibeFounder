@@ -108,6 +108,30 @@ class PlaidAccount(Base):
     user: Mapped[User] = relationship(back_populates="plaid_accounts")
 
 
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    token: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4, unique=True)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AccessRequest(Base):
+    __tablename__ = "access_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")  # pending | approved | denied
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class NewsArticle(Base):
     __tablename__ = "news_articles"
 

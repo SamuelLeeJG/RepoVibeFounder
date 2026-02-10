@@ -54,16 +54,17 @@ export interface SignalRow {
   ticker: string;
   price: number;
   signal_direction: string;
+  signal_arrow: string;
   probability_score: number;
   rsi_5: number;
+  rsi_9: number;
+  rsi_14: number;
   macd_zscore: number;
   vix_regime: string;
-}
-
-export interface SignalGridResponse {
-  signals: SignalRow[];
-  vix: VIXInfo;
-  updated_at: string;
+  reversal_pct: number;
+  sector: string;
+  next_earnings_date: string | null;
+  is_extreme_move: boolean;
 }
 
 export interface PortfolioPoint {
@@ -192,4 +193,77 @@ export interface MultiTimeframeChart {
   timeframe: string;
   bars: ChartBar[];
   reversal_points: { timestamp: string; zscore: number }[];
+}
+
+// ── v2.1 types ──
+
+export interface SignalGridResponse {
+  signals: SignalRow[];
+  vix: VIXInfo;
+  updated_at: string;
+  refresh_intervals: Record<string, number>;
+}
+
+export interface MACDExtremeData {
+  ticker: string;
+  current_hist: number;
+  current_hist_zscore: number;
+  one_day: { change: number; mean: number; std: number; z_score: number; is_extreme: boolean; direction: string; threshold_lower: number; threshold_upper: number };
+  three_day: { change: number; mean: number; std: number; z_score: number; is_extreme: boolean; direction: string; threshold_lower: number; threshold_upper: number };
+  is_extreme_now: boolean;
+  events: { ticker: string; timestamp: string; period: string; direction: string; change: number; z_score: number; close_price: number }[];
+}
+
+export interface EarningsSignalData {
+  ticker: string;
+  has_upcoming_earnings: boolean;
+  earnings_date: string | null;
+  days_until_earnings: number | null;
+  signals: { type: string; description: string; strength: number }[];
+  signal_strength: number;
+  recommendation: string;
+}
+
+export interface UpcomingEarningsItem {
+  ticker: string;
+  earnings_date: string;
+  eps_estimated: number | null;
+  signals: { type: string; description: string; strength: number }[];
+  signal_strength: number;
+  recommendation: string;
+}
+
+export interface Notification {
+  id: string;
+  ticker: string;
+  type: string;
+  title: string;
+  message: string;
+  severity: string;
+  created_at: string;
+  read: boolean;
+  data: Record<string, unknown>;
+}
+
+export interface PortfolioData {
+  tickers: string[];
+  weights: Record<string, number>;
+  tangency_weights: Record<string, number> | null;
+  sharpe: number;
+  total_value: number | null;
+}
+
+export interface BenchmarkData {
+  portfolio: PerfMetrics;
+  spy?: PerfMetrics;
+  qqq?: PerfMetrics;
+}
+
+export interface PerfMetrics {
+  name: string;
+  total_return_pct: number;
+  annualized_return_pct: number;
+  annualized_vol_pct: number;
+  sharpe_ratio: number;
+  max_drawdown_pct: number;
 }

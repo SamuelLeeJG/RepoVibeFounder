@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Area,
   Bar,
@@ -12,6 +13,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  Brush,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,9 +23,25 @@ interface AnalysisPaneProps {
   data: ChartBar[];
   ticker: string;
   loading: boolean;
+  timeframe?: string;
+  onTimeframeChange?: (tf: string) => void;
 }
 
-export function AnalysisPane({ data, ticker, loading }: AnalysisPaneProps) {
+const TIMEFRAMES = [
+  { value: "1Hour", label: "H" },
+  { value: "1Day", label: "D" },
+];
+
+function formatTimeLabel(timestamp: string, timeframe: string): string {
+  if (timeframe === "1Day") {
+    return timestamp.slice(5, 10); // MM-DD
+  }
+  return timestamp.slice(5, 16).replace("T", " "); // MM-DD HH:MM
+}
+
+export function AnalysisPane({ data, ticker, loading, timeframe = "1Hour", onTimeframeChange }: AnalysisPaneProps) {
+  const [brushRange, setBrushRange] = useState<[number, number] | null>(null);
+
   if (loading) {
     return (
       <Card className="h-full flex items-center justify-center">
@@ -40,16 +58,36 @@ export function AnalysisPane({ data, ticker, loading }: AnalysisPaneProps) {
     );
   }
 
-  // Take last 200 bars for readability
   const chartData = data.slice(-200).map((b) => ({
     ...b,
-    time: b.timestamp.slice(5, 16).replace("T", " "),
+    time: formatTimeLabel(b.timestamp, timeframe),
   }));
+
+  const timeLabel = timeframe === "1Day" ? "Day" : "Hour";
 
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-mono">{ticker} Analysis</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-mono">{ticker} Analysis</CardTitle>
+          {/* Timeframe Toggle */}
+          <div className="flex items-center gap-1">
+            {TIMEFRAMES.map((tf) => (
+              <button
+                key={tf.value}
+                onClick={() => onTimeframeChange?.(tf.value)}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                  timeframe === tf.value
+                    ? "bg-emerald-600 text-white"
+                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                }`}
+              >
+                {tf.label}
+              </button>
+            ))}
+            <span className="text-xs text-zinc-500 ml-2">per {timeLabel}</span>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="price">
@@ -73,8 +111,8 @@ export function AnalysisPane({ data, ticker, loading }: AnalysisPaneProps) {
                 <Area type="monotone" dataKey="bb_lower" stroke="none" fill="#3b82f6" fillOpacity={0.08} name="BB Lower" />
                 <Line type="monotone" dataKey="close" stroke="#e4e4e7" dot={false} strokeWidth={1.5} name="Close" />
                 <Line type="monotone" dataKey="bb_lower" stroke="#3b82f6" dot={false} strokeWidth={1} strokeDasharray="4 2" name="BB Lower" />
-                {/* Highlight phase-3 bars */}
                 <Bar dataKey={(d: Record<string, unknown>) => (d.phase3 ? d.close : null)} fill="#10b981" opacity={0.3} name="Signal" />
+                <Brush dataKey="time" height={20} stroke="#3f3f46" fill="#18181b" />
               </ComposedChart>
             </ResponsiveContainer>
           </TabsContent>
@@ -96,6 +134,7 @@ export function AnalysisPane({ data, ticker, loading }: AnalysisPaneProps) {
                 <Line type="monotone" dataKey="rsi_9" stroke="#8b5cf6" dot={false} strokeWidth={1.5} name="RSI(9)" />
                 <Line type="monotone" dataKey="rsi_14" stroke="#06b6d4" dot={false} strokeWidth={1.5} name="RSI(14)" />
                 <Legend />
+                <Brush dataKey="time" height={20} stroke="#3f3f46" fill="#18181b" />
               </ComposedChart>
             </ResponsiveContainer>
           </TabsContent>
@@ -111,8 +150,8 @@ export function AnalysisPane({ data, ticker, loading }: AnalysisPaneProps) {
                   contentStyle={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: 8 }}
                   labelStyle={{ color: "#a1a1aa" }}
                 />
-                <ReferenceLine y={-2} stroke="#10b981" strokeDasharray="3 3" label={{ value: "-2 SD", fill: "#10b981", fontSize: 10 }} />
-                <ReferenceLine y={2} stroke="#ef4444" strokeDasharray="3 3" label={{ value: "+2 SD", fill: "#ef4444", fontSize: 10 }} />
+                <ReferenceLine y={-2} stroke="#10b981" strokeDasharray="3 3" label={{ value: "-2 SD (Buy)", fill: "#10b981", fontSize: 10 }} />
+                <ReferenceLine y={2} stroke="#ef4444" strokeDasharray="3 3" label={{ value: "+2 SD (Sell)", fill: "#ef4444", fontSize: 10 }} />
                 <ReferenceLine y={0} stroke="#3f3f46" />
                 <Bar dataKey="macd_hist" name="MACD Hist">
                   {chartData.map((entry, index) => {
@@ -122,6 +161,7 @@ export function AnalysisPane({ data, ticker, loading }: AnalysisPaneProps) {
                 </Bar>
                 <Line type="monotone" dataKey="hist_zscore" stroke="#f59e0b" dot={false} strokeWidth={2} name="Z-Score" />
                 <Legend />
+                <Brush dataKey="time" height={20} stroke="#3f3f46" fill="#18181b" />
               </ComposedChart>
             </ResponsiveContainer>
           </TabsContent>
