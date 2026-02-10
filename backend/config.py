@@ -26,6 +26,25 @@ class Settings(BaseSettings):
     # Performance
     thesis_timeout_ms: int = 800
 
+    # Database
+    database_url: str = "postgresql+asyncpg://alphabeta:alphabeta@localhost:5432/alphabeta"
+    database_url_sync: str = "postgresql://alphabeta:alphabeta@localhost:5432/alphabeta"
+
+    # JWT Auth
+    jwt_secret_key: str = "super-secret-change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 30
+    jwt_refresh_token_expire_days: int = 7
+
+    # External API keys (v2.0 integrations)
+    fmp_api_key: str = ""  # Financial Modeling Prep
+    quiver_api_key: str = ""  # Quiver Quantitative
+    finnhub_api_key: str = ""  # Finnhub
+    benzinga_api_key: str = ""  # Benzinga
+    plaid_client_id: str = ""  # Plaid
+    plaid_secret: str = ""
+    plaid_env: str = "sandbox"  # sandbox | development | production
+
     model_config = {"env_file": ".env", "env_prefix": "AB_"}
 
 

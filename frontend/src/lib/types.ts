@@ -106,3 +106,90 @@ export interface ChartBar {
   phase2: boolean;
   phase3: boolean;
 }
+
+// ── v2.0 types ──
+
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user_id: string;
+  role: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  display_name: string;
+  role: string;
+  pinned_tickers: string[];
+  created_at: string;
+}
+
+export interface ShockEvent {
+  ticker: string;
+  timestamp: string;
+  zscore: number;
+  velocity: number;
+  acceleration: number;
+  direction: string;
+  severity: string;
+}
+
+export interface ThresholdCheck {
+  exceeds_90pct: boolean;
+  reversal_rate: number;
+  sample_count: number;
+  current_zscore: number;
+}
+
+export interface NewsArticle {
+  headline: string;
+  source: string;
+  url: string;
+  published_at: string;
+  sentiment: string;
+  summary: string;
+}
+
+export interface TickerEvent {
+  ticker: string;
+  event_type: string;
+  event_date: string;
+  details: Record<string, unknown> | null;
+  source: string | null;
+}
+
+export interface InsiderTrade {
+  ticker: string;
+  name: string;
+  transaction_type: string;
+  value: number;
+  wealth_impact_score: number;
+  date: string;
+}
+
+export interface PoliticianTrade {
+  politician: string;
+  ticker: string;
+  transaction_type: string;
+  amount: string;
+  date: string;
+  source: string;
+}
+
+export interface RSIHistoryDay {
+  date: string;
+  rsi_5: number;
+  rsi_9: number;
+  rsi_14: number;
+  phase: number;
+  close: number;
+}
+
+export interface MultiTimeframeChart {
+  ticker: string;
+  timeframe: string;
+  bars: ChartBar[];
+  reversal_points: { timestamp: string; zscore: number }[];
+}

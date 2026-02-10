@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Alpha-Beta Decision Intelligence Terminal</title>
+<title>Alpha-Beta Decision Intelligence Terminal v2.0</title>
 <style>
 /* ── Reset & Base ────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -109,6 +109,17 @@ header h1 span{color:#71717a}
 .rebalance-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:#18181b;border-radius:8px;padding:12px;margin-top:8px}
 .rebalance-row{display:flex;justify-content:space-between;font-size:13px}
 
+/* ── Events Panel ────────────────────────────────────────────────────────── */
+.event-row{display:flex;align-items:center;justify-content:space-between;background:#18181b;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px}
+.event-section{margin-bottom:16px}
+.event-section h3{font-size:13px;font-weight:600;margin-bottom:8px}
+.shock-indicator{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;animation:shockPulse 1.5s ease-in-out infinite}
+.shock-crash{background:rgba(239,68,68,.2);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+.shock-melt{background:rgba(16,185,129,.2);color:#34d399;border:1px solid rgba(16,185,129,.3)}
+@keyframes shockPulse{0%,100%{opacity:1}50%{opacity:.6}}
+.threshold-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+.threshold-badge.above90{background:rgba(16,185,129,.15);color:#34d399;border-color:rgba(16,185,129,.3)}
+
 /* ── Right Column ────────────────────────────────────────────────────────── */
 .right-col{display:flex;flex-direction:column;gap:16px}
 
@@ -135,7 +146,7 @@ header h1 span{color:#71717a}
 
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header>
-  <h1>Alpha-Beta<span> Decision Intelligence Terminal</span></h1>
+  <h1>Alpha-Beta<span> Decision Intelligence Terminal</span> <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,.15);color:#34d399;vertical-align:middle">v2.0</span></h1>
   <div class="header-right">
     <div class="header-signals" id="headerSignals"></div>
     <div class="header-time mono" id="headerTime"></div>
@@ -150,6 +161,7 @@ header h1 span{color:#71717a}
   <div style="margin-bottom:12px">
     <div class="tab-bar" id="mainTabs">
       <button class="tab-btn active" data-tab="signals">Signals + Analysis</button>
+      <button class="tab-btn" data-tab="events">Events & Insiders</button>
       <button class="tab-btn" data-tab="portfolio">Portfolio Optimizer</button>
     </div>
   </div>
@@ -220,6 +232,29 @@ header h1 span{color:#71717a}
 
         <!-- Thesis Card -->
         <div class="card hidden" id="thesisCard"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Events View -->
+  <div id="eventsView" class="hidden">
+    <div class="grid-container">
+      <div class="card">
+        <div class="card-header"><h2 class="font-semibold">Select Ticker</h2></div>
+        <div class="card-body">
+          <div class="signal-table-wrap">
+            <table class="signal-table">
+              <thead><tr><th style="text-align:left">Ticker</th><th>Price</th><th>Signal</th></tr></thead>
+              <tbody id="eventsTickerBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="right-col">
+        <div class="card" id="eventsPanel">
+          <div class="card-header"><span class="font-semibold" id="eventsPanelTitle">Select a ticker to view events</span></div>
+          <div class="card-body" id="eventsPanelBody"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -544,7 +579,9 @@ function generateSignals() {
     else if (absZ > 1.0) score += 5;
     if (VIX_DATA.extreme_fear) score += 15; // VIX bonus only when fear is elevated
 
-    var revPct = phase3 ? 68 + Math.floor(r5 % 10) : (absZ > 2 ? 62 + Math.floor(absZ * 3) : 0);
+    // v2.0: Ticker-specific reversal rates
+    var tickerBt = getTickerSpecificBacktest(ticker, phase3 ? "rsi_phase3" : (absZ > 2 ? "macd_washout" : "combined"));
+    var revPct = tickerBt.sample_count > 0 ? tickerBt.reversal_pct : (phase3 ? 68 + Math.floor(r5 % 10) : (absZ > 2 ? 62 + Math.floor(absZ * 3) : 0));
 
     return {
       ticker: ticker, price: closes[last], signal_direction: direction, signal_arrow: arrow,
@@ -616,9 +653,11 @@ function generateThesis(ticker) {
     };
   });
 
-  var revPct = active ? 68 : (Math.abs(z) > 2 ? 72 : 45);
-  var avgGain = active ? 3.2 : (Math.abs(z) > 2 ? 2.8 : 1.1);
-  var samples = active ? 14 : (Math.abs(z) > 2 ? 22 : 8);
+  // v2.0: Ticker-specific backtest instead of flat rates
+  var bt = getTickerSpecificBacktest(ticker, active ? "rsi_phase3" : (Math.abs(z) > 2 ? "macd_washout" : "combined"));
+  var revPct = bt.sample_count > 0 ? bt.reversal_pct : (active ? 68 : (Math.abs(z) > 2 ? 72 : 45));
+  var avgGain = bt.sample_count > 0 ? bt.avg_gain_pct : (active ? 3.2 : (Math.abs(z) > 2 ? 2.8 : 1.1));
+  var samples = bt.sample_count > 0 ? bt.sample_count : (active ? 14 : (Math.abs(z) > 2 ? 22 : 8));
 
   return {
     ticker: ticker, price: closes[last], signal_direction: direction, probability_score: Math.min(prob, 100),
@@ -1055,6 +1094,9 @@ function renderThesisCard() {
                   t.signal_direction === "sell" ? '<span class="arrow-down" style="margin:0 4px"></span>' : '';
   var badgeClass = t.signal_direction === "buy" ? "badge-buy" : t.signal_direction === "sell" ? "badge-sell" : "badge-neutral";
   var probClass = t.probability_score >= 60 ? "c-green" : t.probability_score >= 35 ? "c-amber" : "c-muted";
+  // v2.0: Check for velocity shock
+  var shock = detectVelocityShock(t.ticker);
+  var threshold90 = check90PctThreshold(t.ticker);
 
   var html = '<div class="thesis-header">' +
     '<div class="flex items-center gap-3">' +
@@ -1068,6 +1110,18 @@ function renderThesisCard() {
       '<div class="thesis-prob-value mono ' + probClass + '">' + t.probability_score.toFixed(1) + '%</div>' +
     '</div></div>';
   html += '<div class="card-body">';
+  // v2.0: Shock + threshold indicators
+  if (shock || threshold90.exceeds_90pct) {
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">';
+    if (shock) {
+      html += '<span class="shock-indicator ' + (shock.direction === "crash_shock" ? "shock-crash" : "shock-melt") + '">' +
+        (shock.direction === "crash_shock" ? "CRASH SHOCK" : "MELT-UP SHOCK") + ' (' + shock.severity.toUpperCase() + ')</span>';
+    }
+    if (threshold90.exceeds_90pct) {
+      html += '<span class="threshold-badge above90">90%+ REVERSAL RATE (' + threshold90.reversal_rate + '%, ' + threshold90.sample_count + ' samples)</span>';
+    }
+    html += '</div>';
+  }
   html += '<div class="thesis-section"><h3 style="color:#34d399">Why Now</h3><p>' + t.why_now + '</p></div>';
   html += '<div class="thesis-section"><h3 style="color:#60a5fa">Macro Tailwind</h3><p>' + t.macro_tailwind + '</p></div>';
   html += '<div class="thesis-section"><h3 style="color:#fbbf24">Risk</h3><p>' + t.risk_summary + '</p></div>';
@@ -1225,8 +1279,10 @@ function setupTabListeners() {
       for (var j = 0; j < siblings.length; j++) siblings[j].classList.remove("active");
       this.classList.add("active");
       document.getElementById("signalsView").classList.toggle("hidden", tabName !== "signals");
+      document.getElementById("eventsView").classList.toggle("hidden", tabName !== "events");
       document.getElementById("portfolioView").classList.toggle("hidden", tabName !== "portfolio");
       if (tabName === "portfolio") setTimeout(renderPortfolioChart, 50);
+      if (tabName === "events") renderEventsTickerList();
     });
   }
 }
@@ -1255,6 +1311,234 @@ function setupChartTabListeners() {
       if (state.thesis) renderChart();
     });
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  v2.0 FEATURES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Velocity Shock Detection ─────────────────────────────────────────────────
+
+function detectVelocityShock(ticker) {
+  var data = generatePriceData(ticker, 300);
+  var closes = data.map(function(d){return d.close;});
+  var macd = computeMACD(closes);
+  var zscores = macd.zscores;
+  if (zscores.length < 10) return null;
+  var last = zscores.length - 1;
+  var velocity = zscores[last] - zscores[last - 1];
+  var prevVelocity = zscores[last - 1] - zscores[last - 2];
+  var acceleration = velocity - prevVelocity;
+  var threshold = 0.5;
+  if (Math.abs(velocity) < threshold) return null;
+  var direction = velocity < -threshold ? "crash_shock" : "melt_up_shock";
+  var severity = Math.abs(velocity) > threshold * 3 ? "extreme" : Math.abs(velocity) > threshold * 2 ? "severe" : "moderate";
+  return { ticker: ticker, zscore: zscores[last], velocity: +velocity.toFixed(4), acceleration: +acceleration.toFixed(4), direction: direction, severity: severity };
+}
+
+function check90PctThreshold(ticker) {
+  var data = generatePriceData(ticker, 300);
+  var closes = data.map(function(d){return d.close;});
+  var macd = computeMACD(closes);
+  var zscores = macd.zscores;
+  var last = zscores.length - 1;
+  var currentZ = zscores[last];
+  var threshold = Math.abs(currentZ);
+  if (threshold < 1.5) return { exceeds_90pct: false, reversal_rate: 0, sample_count: 0 };
+  var reversals = 0, total = 0;
+  for (var i = 50; i < zscores.length - 40; i++) {
+    if (Math.abs(zscores[i]) < threshold) continue;
+    var entry = closes[i];
+    var forward = closes.slice(i + 1, i + 41);
+    if (forward.length < 5) continue;
+    if (zscores[i] < 0) {
+      if (Math.max.apply(null, forward) > entry) reversals++;
+    } else {
+      if (Math.min.apply(null, forward) < entry) reversals++;
+    }
+    total++;
+  }
+  var rate = total > 0 ? (reversals / total * 100) : 0;
+  return { exceeds_90pct: rate >= 90, reversal_rate: +rate.toFixed(1), sample_count: total };
+}
+
+// ── Ticker-Specific Backtest ─────────────────────────────────────────────────
+
+function getTickerSpecificBacktest(ticker, signalType) {
+  var data = generatePriceData(ticker, 300);
+  var closes = data.map(function(d){return d.close;});
+  var rsi5 = computeRSI(closes, 5);
+  var rsi9 = computeRSI(closes, 9);
+  var rsi14 = computeRSI(closes, 14);
+  var macd = computeMACD(closes);
+  var bb = bollingerLower(closes);
+  var wins = 0, total = 0, gains = [];
+  var windowBars = 40; // ~5 days * 8 bars
+
+  for (var i = 50; i < closes.length - windowBars; i++) {
+    var triggered = false;
+    if (signalType === "rsi_phase3" || signalType === "combined") {
+      var r5 = rsi5[i], r9 = rsi9[i], r14 = rsi14[i];
+      var pr5 = rsi5[i-1] || 50, pr9 = rsi9[i-1] || 50;
+      var cross = r5 > r9 && pr5 <= pr9;
+      var below14 = r5 < r14 && r9 < r14;
+      if (cross && below14 && bb[i] !== null && closes[i] < bb[i]) triggered = true;
+    }
+    if (signalType === "macd_washout" || signalType === "combined") {
+      if (macd.zscores[i] < -2.0) triggered = true;
+    }
+    if (!triggered) continue;
+    var entry = closes[i];
+    var forward = closes.slice(i + 1, i + 1 + windowBars);
+    var maxFwd = Math.max.apply(null, forward);
+    var gain = (maxFwd - entry) / entry * 100;
+    total++;
+    if (gain > 0) wins++;
+    gains.push(gain);
+  }
+  if (total === 0) return { reversal_pct: 0, avg_gain_pct: 0, sample_count: 0 };
+  var avgGain = gains.reduce(function(a,b){return a+b;}, 0) / gains.length;
+  return { reversal_pct: +(wins/total*100).toFixed(1), avg_gain_pct: +avgGain.toFixed(2), sample_count: total };
+}
+
+// ── Events Panel (Synthetic Demo Data) ───────────────────────────────────────
+
+var DEMO_POLITICIANS = ["Nancy Pelosi", "Dan Crenshaw", "Tommy Tuberville", "Mark Green", "Josh Gottheimer"];
+var DEMO_INSIDERS = ["CEO", "CFO", "Director", "VP Engineering", "General Counsel"];
+
+function generateDemoEvents(ticker) {
+  var rng = seededRandom(tickerSeed(ticker) + 999);
+  var events = [];
+  // Earnings (2 upcoming)
+  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  for (var i = 0; i < 2; i++) {
+    var m = (1 + i * 3) % 12;
+    var eps = +(1.5 + rng() * 3).toFixed(2);
+    events.push({ type: "earnings", date: "2026-" + String(m+1).padStart(2,"0") + "-" + String(10 + Math.floor(rng()*18)).padStart(2,"0"), details: { eps_estimated: eps, revenue_estimated: "$" + (2 + rng()*20).toFixed(1) + "B" } });
+  }
+  // Insider trades (3-5)
+  var numInsider = 3 + Math.floor(rng() * 3);
+  for (var i = 0; i < numInsider; i++) {
+    var isBuy = rng() > 0.4;
+    events.push({
+      type: "insider_trade", date: "2026-0" + (1 + Math.floor(rng()*2)) + "-" + String(5 + Math.floor(rng()*23)).padStart(2,"0"),
+      name: DEMO_INSIDERS[Math.floor(rng()*DEMO_INSIDERS.length)],
+      transaction: isBuy ? "Purchase" : "Sale",
+      value: "$" + (isBuy ? (50 + Math.floor(rng()*500)) : (100 + Math.floor(rng()*2000))) + "K"
+    });
+  }
+  // Politician trades (0-3)
+  var numPol = Math.floor(rng() * 4);
+  for (var i = 0; i < numPol; i++) {
+    events.push({
+      type: "politician_trade", date: "2026-0" + (1 + Math.floor(rng()*2)) + "-" + String(3 + Math.floor(rng()*25)).padStart(2,"0"),
+      politician: DEMO_POLITICIANS[Math.floor(rng()*DEMO_POLITICIANS.length)],
+      transaction: rng() > 0.5 ? "Purchase" : "Sale",
+      amount: "$" + (15 + Math.floor(rng()*500)) + "K - $" + (50 + Math.floor(rng()*1000)) + "K"
+    });
+  }
+  return events;
+}
+
+function renderEventsTickerList() {
+  var tbody = document.getElementById("eventsTickerBody");
+  if (!tbody || !state.signals) return;
+  var html = "";
+  var top50 = state.signals.slice(0, 50);
+  for (var i = 0; i < top50.length; i++) {
+    var s = top50[i];
+    var cls = state.selectedTicker === s.ticker ? ' class="selected"' : '';
+    html += '<tr' + cls + ' data-ticker-event="' + s.ticker + '">' +
+      '<td class="mono font-semibold">' + s.ticker + '</td>' +
+      '<td class="mono text-right">$' + s.price.toFixed(2) + '</td>' +
+      '<td class="text-center"><span class="badge badge-' + (s.signal_direction === "buy" ? "buy" : s.signal_direction === "sell" ? "sell" : "neutral") + '">' + s.signal_direction.toUpperCase() + '</span></td>' +
+      '</tr>';
+  }
+  tbody.innerHTML = html;
+  var rows = tbody.querySelectorAll("tr");
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].addEventListener("click", function() {
+      var tk = this.getAttribute("data-ticker-event");
+      state.selectedTicker = tk;
+      renderEventsPanel(tk);
+      var allRows = tbody.querySelectorAll("tr");
+      for (var j = 0; j < allRows.length; j++) allRows[j].classList.remove("selected");
+      this.classList.add("selected");
+    });
+  }
+}
+
+function renderEventsPanel(ticker) {
+  var title = document.getElementById("eventsPanelTitle");
+  var body = document.getElementById("eventsPanelBody");
+  if (!title || !body) return;
+  title.textContent = ticker + " Events & Activity";
+  var events = generateDemoEvents(ticker);
+  var shock = detectVelocityShock(ticker);
+  var threshold = check90PctThreshold(ticker);
+  var bt = getTickerSpecificBacktest(ticker, "combined");
+
+  var html = "";
+
+  // Shock indicator
+  if (shock) {
+    html += '<div style="margin-bottom:12px"><span class="shock-indicator ' + (shock.direction === "crash_shock" ? "shock-crash" : "shock-melt") + '">' +
+      (shock.direction === "crash_shock" ? "CRASH SHOCK" : "MELT-UP SHOCK") + ' (' + shock.severity.toUpperCase() + ') v=' + shock.velocity + '</span></div>';
+  }
+
+  // 90% threshold
+  if (threshold.sample_count > 0) {
+    html += '<div style="margin-bottom:12px"><span class="threshold-badge' + (threshold.exceeds_90pct ? " above90" : "") + '">' +
+      'MACD-Z Reversal Rate: ' + threshold.reversal_rate + '% (' + threshold.sample_count + ' samples)' +
+      (threshold.exceeds_90pct ? ' — EXCEEDS 90%' : '') + '</span></div>';
+  }
+
+  // Ticker-specific backtest
+  if (bt.sample_count > 0) {
+    html += '<div style="margin-bottom:12px;background:#18181b;border-radius:8px;padding:8px 12px;font-size:13px">' +
+      '<span class="text-xs c-muted">Ticker-Specific Backtest:</span> <span class="mono">' + bt.reversal_pct + '% win rate</span>' +
+      ' <span class="text-xs c-muted">(' + bt.sample_count + ' signals, avg +' + bt.avg_gain_pct + '%)</span></div>';
+  }
+
+  // Earnings
+  var earnings = events.filter(function(e){return e.type === "earnings";});
+  if (earnings.length > 0) {
+    html += '<div class="event-section"><h3 class="c-blue">Earnings Calendar</h3>';
+    for (var i = 0; i < earnings.length; i++) {
+      var e = earnings[i];
+      html += '<div class="event-row"><div class="flex items-center gap-2"><span class="badge badge-info">Earnings</span><span class="mono">' + e.date + '</span></div>' +
+        '<div class="text-xs c-muted">Est EPS: $' + e.details.eps_estimated + ' | Rev: ' + e.details.revenue_estimated + '</div></div>';
+    }
+    html += '</div>';
+  }
+
+  // Insider trades
+  var insiders = events.filter(function(e){return e.type === "insider_trade";});
+  if (insiders.length > 0) {
+    html += '<div class="event-section"><h3 class="c-amber">Insider Trades</h3>';
+    for (var i = 0; i < insiders.length; i++) {
+      var t = insiders[i];
+      var isBuy = t.transaction === "Purchase";
+      html += '<div class="event-row"><div class="flex items-center gap-2"><span class="badge badge-' + (isBuy ? "buy" : "sell") + '">' + (isBuy ? "BUY" : "SELL") + '</span><span>' + t.name + '</span></div>' +
+        '<div class="flex items-center gap-3"><span class="text-xs c-muted">' + t.date + '</span><span class="mono ' + (isBuy ? "c-green" : "c-red") + '">' + t.value + '</span></div></div>';
+    }
+    html += '</div>';
+  }
+
+  // Politician trades
+  var pols = events.filter(function(e){return e.type === "politician_trade";});
+  if (pols.length > 0) {
+    html += '<div class="event-section"><h3 style="color:#a78bfa">Politician Trades</h3>';
+    for (var i = 0; i < pols.length; i++) {
+      var p = pols[i];
+      var isPBuy = p.transaction === "Purchase";
+      html += '<div class="event-row"><div class="flex items-center gap-2"><span class="badge badge-' + (isPBuy ? "buy" : "sell") + '">' + (isPBuy ? "BUY" : "SELL") + '</span><span>' + p.politician + '</span></div>' +
+        '<div class="flex items-center gap-3"><span class="text-xs c-muted">' + p.date + '</span><span class="mono">' + p.amount + '</span></div></div>';
+    }
+    html += '</div>';
+  }
+
+  body.innerHTML = html;
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────

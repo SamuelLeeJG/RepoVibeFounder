@@ -100,3 +100,72 @@ class TradeImpactResponse(BaseModel):
     sharpe_after: float
     sharpe_delta: float
     recommendation: str
+
+
+# ── v2.0 models ──
+
+
+class ShockEventModel(BaseModel):
+    ticker: str
+    timestamp: str
+    zscore: float
+    velocity: float
+    acceleration: float
+    direction: str  # crash_shock | melt_up_shock
+    severity: str  # moderate | severe | extreme
+
+
+class BacktestDetailResponse(BaseModel):
+    ticker: str
+    signal_type: str
+    reversal_pct: float
+    avg_gain_pct: float
+    sample_count: int
+    timeframe: str
+
+
+class ThresholdCheckResponse(BaseModel):
+    exceeds_90pct: bool
+    reversal_rate: float
+    sample_count: int
+    current_zscore: float
+
+
+class NewsArticleModel(BaseModel):
+    headline: str
+    source: str
+    url: str
+    published_at: str
+    sentiment: str
+    summary: str
+
+
+class EventModel(BaseModel):
+    ticker: str
+    event_type: str
+    event_date: str
+    details: dict | None = None
+    source: str | None = None
+
+
+class InsiderTradeModel(BaseModel):
+    ticker: str
+    name: str
+    transaction_type: str
+    value: float
+    wealth_impact_score: float
+    date: str
+
+
+class PoliticianTradeModel(BaseModel):
+    politician: str
+    ticker: str
+    transaction_type: str
+    amount: str
+    date: str
+    source: str
+
+
+class MultiTimeframeRequest(BaseModel):
+    ticker: str
+    timeframe: str = "1Hour"  # 1Hour | 1Day | 1Week | 1Month

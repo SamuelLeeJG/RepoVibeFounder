@@ -8,3 +8,12 @@ httpx==0.28.1
 python-dotenv==1.0.1
 pydantic==2.10.4
 pydantic-settings==2.7.1
+# v2.0 additions
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+alembic==1.14.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+# JWT: Pure stdlib HMAC-SHA256 (no external JWT library needed)
+python-multipart==0.0.17
