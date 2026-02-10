@@ -391,7 +391,7 @@ var REAL_PRICES = {
   JPM:321.91, BAC:56.41, GS:928.75, MS:182.41, BRK_B:508.09, V:325.58, MA:551.89,
   SCHW:107.20, C:124.33, WFC:93.97, BLK:1056.38, AXP:359.15, COF:222.79, USB:60.69,
   PNC:242.48, TFC:55.08, BK:124.32, FITB:55.47, KEY:23.16, CFG:65.97, HBAN:19.07,
-  MTB:236.25, RF:30.50, ZION:65.16, CMA:90.39, STT:134.96, NTRS:152.15,
+  MTB:236.25, RF:30.50, ZION:65.16, CMA:90.39, STT:134.96, NTRS:149.43,
   ICE:168.29, CME:302.27, CBOE:280.88, NDAQ:86.30, MSCI:559.39, SPGI:444.19,
   MCO:449.47, FIS:50.78, FISV:60.00, GPN:72.86, FLT:354.19, SYF:77.51,
   AIG:75.96, ALL:199.94, AFL:117.15, MET:76.28, PRU:102.82, PGR:213.15,
@@ -524,7 +524,9 @@ function tickerSeed(ticker) {
 }
 
 function getRealPrice(ticker) {
-  return REAL_PRICES[ticker] || null;
+  // Return immutable base price (BASE_PRICES populated after buildTiers),
+  // falling back to REAL_PRICES for initial load before tiers are built.
+  return (typeof BASE_PRICES !== "undefined" && BASE_PRICES[ticker]) || REAL_PRICES[ticker] || null;
 }
 
 // ── Tiered Price Refresh System ──────────────────────────────────────────────
@@ -538,6 +540,7 @@ var TIER_ASSIGNMENTS = {};    // ticker -> tier index
 var TIER_LISTS = [[], [], [], [], []];
 var TIER_STATUS = [];         // { tier, lastRefreshed, refreshCount }
 var LIVE_PRICES = {};         // ticker -> { price, prevClose, change, changePct, updatedAt }
+var BASE_PRICES = {};         // immutable copy of original REAL_PRICES (never mutated)
 
 (function buildTiers() {
   var tickers = Object.keys(REAL_PRICES);
@@ -551,8 +554,9 @@ var LIVE_PRICES = {};         // ticker -> { price, prevClose, change, changePct
   for (var t = 0; t < PRICE_TIERS.NUM_TIERS; t++) {
     TIER_STATUS.push({ tier: t, tickerCount: TIER_LISTS[t].length, lastRefreshed: null, refreshCount: 0 });
   }
-  // Initialize LIVE_PRICES from REAL_PRICES
+  // Initialize LIVE_PRICES and BASE_PRICES from REAL_PRICES
   for (var tk in REAL_PRICES) {
+    BASE_PRICES[tk] = REAL_PRICES[tk]; // immutable snapshot
     if (REAL_PRICES[tk] > 0) {
       LIVE_PRICES[tk] = {
         price: REAL_PRICES[tk], prevClose: REAL_PRICES[tk], change: 0, changePct: 0,
@@ -570,11 +574,11 @@ function refreshTierPrices(tier) {
   // In production, replace this with: fetch("/api/v1/prices/tier/" + tier)
   for (var i = 0; i < tickers.length; i++) {
     var tk = tickers[i];
-    var base = REAL_PRICES[tk] || 100;
+    var base = BASE_PRICES[tk] || 100;  // always anchor to immutable original price
     var prev = LIVE_PRICES[tk] ? LIVE_PRICES[tk].price : base;
     // Random walk: mean=0, stddev proportional to price (0.15% per tick)
     var drift = prev * (Math.random() - 0.498) * 0.003;
-    // Mean-revert toward base price (prevents runaway drift)
+    // Mean-revert toward BASE price (prevents runaway drift)
     var reversion = (base - prev) * 0.02;
     var newPrice = Math.max(prev + drift + reversion, 0.01);
     newPrice = Math.round(newPrice * 100) / 100;
@@ -584,8 +588,7 @@ function refreshTierPrices(tier) {
       price: newPrice, prevClose: base, change: Math.round(change * 100) / 100,
       changePct: changePct, updatedAt: now.toISOString(), tier: tier
     };
-    // Update REAL_PRICES so downstream code picks up the new price
-    REAL_PRICES[tk] = newPrice;
+    // Note: REAL_PRICES is NOT mutated — BASE_PRICES holds the immutable truth
   }
   TIER_STATUS[tier].lastRefreshed = now.toISOString();
   TIER_STATUS[tier].refreshCount++;
