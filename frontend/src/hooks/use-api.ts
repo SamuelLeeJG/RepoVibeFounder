@@ -391,6 +391,92 @@ export function useNotifications(userId: string | null) {
   return { notifications: data, unreadCount, markRead, markAllRead, refetch: fetch };
 }
 
+// ── Tiered Price Refresh (5 tiers x ~100 tickers, 1 tier/min, full cycle 5 min) ──
+
+export interface PriceData {
+  price: number;
+  prev_close: number;
+  change: number;
+  change_pct: number;
+  updated_at: string;
+}
+
+export interface TierMeta {
+  tier: number;
+  ticker_count: number;
+  last_refreshed: string | null;
+  next_refresh_in_s: number;
+}
+
+export function usePriceRefresh() {
+  const [prices, setPrices] = useState<Record<string, PriceData>>({});
+  const [currentTier, setCurrentTier] = useState(0);
+  const [tierMeta, setTierMeta] = useState<TierMeta[]>([]);
+  const [lastFullCycle, setLastFullCycle] = useState<string | null>(null);
+  const tierRef = useRef(0);
+
+  // Fetch a single tier's prices
+  const fetchTier = useCallback(async (tier: number) => {
+    try {
+      const res = await apiFetch<{
+        tier: number;
+        prices: Record<string, PriceData>;
+        count: number;
+      }>(`/api/v1/prices/tier/${tier}`);
+      setPrices((prev) => ({ ...prev, ...res.prices }));
+      return res.count;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // Fetch refresh status
+  const fetchStatus = useCallback(async () => {
+    try {
+      const meta = await apiFetch<{
+        current_tier: number;
+        tiers: TierMeta[];
+        cached_prices: number;
+      }>("/api/v1/prices/status");
+      setCurrentTier(meta.current_tier);
+      setTierMeta(meta.tiers);
+    } catch { /* ignore */ }
+  }, []);
+
+  // Rotate through tiers: fetch one tier every 60s
+  useEffect(() => {
+    // Initial fetch of all prices
+    apiFetch<{
+      prices: Record<string, PriceData>;
+      count: number;
+    }>("/api/v1/prices/all")
+      .then((res) => setPrices(res.prices))
+      .catch(() => {});
+
+    fetchStatus();
+
+    const id = setInterval(async () => {
+      const tier = tierRef.current;
+      await fetchTier(tier);
+      tierRef.current = (tier + 1) % 5;
+      setCurrentTier(tierRef.current);
+      // After a full cycle (every 5 tiers), mark the timestamp
+      if (tierRef.current === 0) {
+        setLastFullCycle(new Date().toISOString());
+      }
+    }, 60000); // 60 seconds per tier
+
+    return () => clearInterval(id);
+  }, [fetchTier, fetchStatus]);
+
+  const getPrice = useCallback(
+    (ticker: string): PriceData | null => prices[ticker.toUpperCase()] ?? null,
+    [prices]
+  );
+
+  return { prices, getPrice, currentTier, tierMeta, lastFullCycle, refetchAll: fetchStatus };
+}
+
 export function useSectors() {
   const [sectors, setSectors] = useState<string[]>([]);
   useEffect(() => {

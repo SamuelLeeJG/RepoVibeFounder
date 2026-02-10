@@ -12,9 +12,14 @@ from backend.db.database import close_db, init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: init DB tables. Shutdown: close DB pool."""
+    """Startup: init DB tables + price refresh. Shutdown: stop refresh + close DB."""
     await init_db()
+    # Start tiered price refresh (5 tiers x ~100 tickers, 1 tier/min, full cycle every 5 min)
+    from backend.services.price_service import get_price_service
+    price_svc = get_price_service()
+    price_svc.start()
     yield
+    price_svc.stop()
     await close_db()
 
 

@@ -716,3 +716,55 @@ async def get_sectors():
 async def get_cache_stats():
     """Get rate limiter / cache statistics."""
     return refresh_manager.get_stats()
+
+
+# ── v2.2 Tiered Price Refresh ──
+
+
+@router.get("/prices/all")
+async def get_all_prices():
+    """Get all cached prices from the tiered refresh system."""
+    from backend.services.price_service import get_price_service
+    svc = get_price_service()
+    prices = svc.get_all_prices()
+    return {
+        "prices": {t: {"price": p.price, "prev_close": p.prev_close, "change": p.change,
+                        "change_pct": p.change_pct, "updated_at": p.updated_at}
+                   for t, p in prices.items()},
+        "count": len(prices),
+        "meta": svc.get_refresh_meta(),
+    }
+
+
+@router.get("/prices/tier/{tier}")
+async def get_tier_prices(tier: int):
+    """Get prices for a specific tier (0-4). Each tier contains ~100 tickers."""
+    from backend.services.price_service import get_price_service
+    svc = get_price_service()
+    prices = svc.get_tier_prices(tier)
+    return {
+        "tier": tier,
+        "prices": {p.ticker: {"price": p.price, "prev_close": p.prev_close, "change": p.change,
+                               "change_pct": p.change_pct, "updated_at": p.updated_at}
+                   for p in prices},
+        "count": len(prices),
+    }
+
+
+@router.get("/prices/status")
+async def get_price_refresh_status():
+    """Get the tiered price refresh system status and metadata."""
+    from backend.services.price_service import get_price_service
+    return get_price_service().get_refresh_meta()
+
+
+@router.get("/prices/{ticker}")
+async def get_ticker_price(ticker: str):
+    """Get the latest cached price for a single ticker."""
+    from backend.services.price_service import get_price_service
+    svc = get_price_service()
+    p = svc.get_price(ticker.upper())
+    if not p:
+        raise HTTPException(status_code=404, detail=f"Price not found for {ticker}")
+    return {"ticker": p.ticker, "price": p.price, "prev_close": p.prev_close,
+            "change": p.change, "change_pct": p.change_pct, "updated_at": p.updated_at}

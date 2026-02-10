@@ -20,6 +20,11 @@ header h1 span{color:#71717a}
 .header-right{display:flex;align-items:center;gap:16px}
 .header-signals{display:flex;gap:12px;font-size:12px}
 .header-time{font-size:12px;color:#71717a}
+.price-refresh-bar{display:flex;align-items:center;gap:4px;padding:2px 24px;background:rgba(30,30,30,.5);border-bottom:1px solid #27272a}
+.tier-dot{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font-size:9px;border-radius:50%;background:#27272a;color:#71717a;cursor:default;transition:all .3s}
+.tier-dot.tier-done{background:#065f46;color:#34d399;box-shadow:0 0 4px rgba(52,211,153,.3)}
+.tier-dot.tier-next{background:#1e3a5f;color:#60a5fa;animation:pulse-tier 1.5s infinite}
+@keyframes pulse-tier{0%,100%{opacity:1}50%{opacity:.5}}
 .main-content{padding:12px 24px 24px}
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
@@ -183,6 +188,7 @@ header h1 span{color:#71717a}
     <div class="header-time mono" id="headerTime"></div>
   </div>
 </header>
+<div class="price-refresh-bar" id="priceRefreshStatus"></div>
 
 <div class="main-content">
   <!-- VIX Banner -->
@@ -382,109 +388,109 @@ var REAL_PRICES = {
   NXPI:185.00, MPWR:480.00, SWKS:85.00, QRVO:76.00, ENPH:52.00, FANG:145.00,
 
   // ── Financials ──
-  JPM:322.40, BAC:56.53, GS:928.75, MS:183.00, BRK_B:508.01, V:331.58, MA:551.89,
-  SCHW:95.36, C:124.31, WFC:93.97, BLK:940.00, AXP:290.00, COF:172.00, USB:48.50,
-  PNC:195.00, TFC:45.00, BK:82.00, FITB:42.50, KEY:17.50, CFG:44.00, HBAN:16.50,
-  MTB:195.00, RF:24.50, ZION:51.00, CMA:60.00, STT:88.00, NTRS:154.80,
-  ICE:158.00, CME:230.00, CBOE:205.00, NDAQ:75.00, MSCI:520.00, SPGI:425.00,
-  MCO:400.00, FIS:78.50, FISV:185.00, GPN:95.00, FLT:290.00, SYF:52.00,
-  AIG:78.00, ALL:207.55, AFL:116.03, MET:82.00, PRU:120.00, PGR:230.00,
-  TRV:245.00, CB:275.00, CINF:135.00, L:78.00, GL:105.00, AJG:290.00,
-  MMC:205.00, AON:342.04, WRB:95.00, BRO:110.00, AIZ:195.00, RE:285.00,
-  RJF:155.00, AMP:490.00, IVZ:16.50, BEN:22.00, TROW:105.00, LNC:32.00,
+  JPM:321.91, BAC:56.41, GS:928.75, MS:182.41, BRK_B:508.09, V:325.58, MA:551.89,
+  SCHW:107.20, C:124.33, WFC:93.97, BLK:1056.38, AXP:359.15, COF:222.79, USB:60.69,
+  PNC:242.48, TFC:55.08, BK:124.32, FITB:55.47, KEY:23.16, CFG:65.97, HBAN:19.07,
+  MTB:236.25, RF:30.50, ZION:65.16, CMA:90.39, STT:134.96, NTRS:152.15,
+  ICE:168.29, CME:302.27, CBOE:280.88, NDAQ:86.30, MSCI:559.39, SPGI:444.19,
+  MCO:449.47, FIS:50.78, FISV:60.00, GPN:72.86, FLT:354.19, SYF:77.51,
+  AIG:75.96, ALL:199.94, AFL:117.15, MET:76.28, PRU:102.82, PGR:213.15,
+  TRV:301.49, CB:331.44, CINF:168.70, L:111.25, GL:146.51, AJG:249.55,
+  MMC:185.03, AON:310.34, WRB:70.41, BRO:73.87, AIZ:242.84, RE:327.00,
+  RJF:172.14, AMP:539.11, IVZ:26.95, BEN:27.68, TROW:97.02, LNC:40.15,
 
   // ── Healthcare ──
-  UNH:276.00, JNJ:239.74, LLY:1058.18, PFE:27.20, MRK:121.93, ABT:110.83,
-  ABBV:222.06, TMO:510.00, DHR:216.61, ISRG:488.15, SYK:358.29, BSX:92.00,
-  MDT:88.00, EW:62.00, BDX:225.00, REGN:680.00, VRTX:420.00, AMGN:366.20,
-  GILD:108.00, BIIB:145.00, BMY:58.00, HCA:330.00, CI:290.00, CVS:52.00,
-  HUM:265.00, CNC:72.00, MOH:310.00, UHS:195.00, DVA:155.00,
-  IDXX:370.00, DXCM:72.00, ALGN:195.00, HOLX:68.00, BAX:28.00,
-  ZBH:105.00, IQV:185.00, CRL:160.00, TECH:62.00, BIO:108.00,
-  ILMN:108.00, INCY:58.00, MRNA:32.00, PKI:108.00, STE:220.00,
-  MTD:1100.00, HSIC:72.00, OGN:15.00, VTRS:12.50, LH:250.00,
+  UNH:279.40, JNJ:238.64, LLY:1058.18, PFE:27.20, MRK:121.93, ABT:110.83,
+  ABBV:221.80, TMO:538.42, DHR:216.61, ISRG:488.15, SYK:358.29, BSX:75.50,
+  MDT:102.90, EW:76.80, BDX:210.02, REGN:780.28, VRTX:466.67, AMGN:375.82,
+  GILD:121.48, BIIB:201.18, BMY:61.99, HCA:497.52, CI:292.05, CVS:74.52,
+  HUM:193.94, CNC:38.45, MOH:132.30, UHS:218.56, DVA:140.88,
+  IDXX:639.79, DXCM:69.97, ALGN:187.60, HOLX:74.89, BAX:21.77,
+  ZBH:88.65, IQV:202.54, CRL:189.21, TECH:64.06, BIO:291.34,
+  ILMN:117.06, INCY:108.39, MRNA:41.01, PKI:103.83, STE:264.27,
+  MTD:1370.85, HSIC:75.48, OGN:7.95, VTRS:14.56, LH:277.20,
 
   // ── Consumer Discretionary ──
-  HD:385.00, MCD:323.48, NKE:63.91, SBUX:98.00, LOW:240.00, TGT:125.00,
-  COST:998.92, BKNG:4200.00, CMG:56.00, DPZ:420.00, DRI:170.00,
-  YUM:135.00, ORLY:1200.00, AZO:3200.00, ROST:148.00, TJX:118.00,
-  ULTA:350.00, BBY:82.00, DHI:130.00, LEN:140.00, PHM:105.00, NVR:7200.00,
-  APTV:58.00, BWA:32.00, GM:48.00, F:9.50, TSCO:52.00,
-  CCL:22.00, RCL:220.00, NCLH:20.00, WYNN:82.00, LVS:42.00, CZR:32.00,
-  MGM:32.00, DG:82.00, DLTR:65.00, EBAY:62.00, ETSY:48.00,
-  GPC:120.00, GRMN:195.00, HAS:58.00, KMX:72.00, LKQ:42.00,
-  MHK:108.00, NWL:7.50, PVH:82.00, RL:205.00, POOL:330.00,
-  TPR:62.00, VFC:16.00, BBWI:28.00, PARA:12.00, WBD:10.50,
-  DISH:5.00, FOXA:42.00, FOX:40.00, NWS:28.00, NWSA:27.00,
-  TTWO:185.00, EA:135.00, MTCH:32.00, LYV:120.00,
+  HD:385.18, MCD:325.60, NKE:62.90, SBUX:99.45, LOW:278.38, TGT:115.20,
+  COST:1001.16, BKNG:4457.17, CMG:39.39, DPZ:394.88, DRI:218.60,
+  YUM:158.53, ORLY:94.22, AZO:3460.00, ROST:193.48, TJX:155.86,
+  ULTA:690.37, BBY:68.80, DHI:156.27, LEN:116.80, PHM:135.09, NVR:8009.84,
+  APTV:83.37, BWA:48.27, GM:84.34, F:13.80, TSCO:55.27,
+  CCL:32.92, RCL:342.61, NCLH:23.12, WYNN:117.52, LVS:57.58, CZR:20.54,
+  MGM:34.17, DG:149.78, DLTR:123.17, EBAY:86.55, ETSY:57.82,
+  GPC:136.61, GRMN:211.82, HAS:96.76, KMX:46.46, LKQ:34.38,
+  MHK:108.14, NWL:4.63, PVH:66.12, RL:342.89, POOL:266.16,
+  TPR:153.37, VFC:20.34, BBWI:22.99, PARA:18.50, WBD:27.20,
+  DISH:0, FOXA:65.36, FOX:58.35, NWS:28.10, NWSA:22.79,
+  TTWO:203.54, EA:199.40, MTCH:31.63, LYV:147.32,
 
   // ── Consumer Staples ──
-  PG:158.00, KO:78.51, PEP:170.49, PM:130.00, MO:52.00, WMT:124.00,
-  MDLZ:62.00, CL:88.00, KMB:135.00, GIS:58.00, SJM:105.00,
-  HSY:155.00, K:82.00, KDP:32.00, KHC:30.00, HRL:28.00,
-  CPB:42.00, CAG:28.00, MKC:72.00, CHD:98.00, CLX:145.00,
-  KR:58.00, SYY:75.00, ADM:66.00, TAP:55.00, STZ:195.00,
-  MNST:48.00, TSN:58.00, LW:62.00, BF_B:52.00,
+  PG:159.17, KO:79.03, PEP:170.49, PM:182.58, MO:65.40, WMT:131.18,
+  MDLZ:60.44, CL:94.67, KMB:104.18, GIS:47.74, SJM:109.51,
+  HSY:192.05, K:83.44, KDP:28.12, KHC:24.64, HRL:24.41,
+  CPB:28.93, CAG:19.18, MKC:67.83, CHD:98.63, CLX:119.36,
+  KR:72.67, SYY:84.65, ADM:67.37, TAP:51.44, STZ:167.26,
+  MNST:82.54, TSN:65.40, LW:47.47, BF_B:32.06,
 
   // ── Industrials ──
-  CAT:350.00, BA:243.00, HON:205.00, UNP:230.00, UPS:125.00,
-  RTX:125.00, DE:425.00, LMT:465.00, GD:265.00, NOC:475.00, LHX:205.00,
-  GE:195.00, MMM:135.00, ITW:255.00, EMR:125.00, ETN:310.00,
-  PH:600.00, ROK:260.00, DOV:175.00, IR:92.00, OTIS:92.00,
-  CARR:62.00, TT:380.00, A_O:78.98, SWK:82.00, SNA:275.00,
-  FAST:72.00, PCAR:98.00, DAL:58.00, UAL:92.00, LUV:28.00, ALK:48.00,
-  CSX:32.00, NSC:235.00, JBHT:155.00, CHRW:92.00, EXPD:115.00, ODFL:165.00,
-  FDX:255.00, URI:650.00, WAB:170.00, GWW:1050.00, TDG:1300.00,
-  ROP:530.00, AME:231.91, IEX:220.00, GNRC:135.00, TDY:420.00,
-  PWR:285.00, TRMB:60.00, ALLE:125.00, FBHS:62.00, MAS:68.00,
-  NDSN:220.00, TYL:450.00, LDOS:152.00, J:135.00, IT:415.00,
-  BR:210.00, PAYC:155.00, PAYX:135.00, JKHY:175.00, CDAY:52.00,
-  FTV:72.00, HWM:105.00, TXT:82.00, DXC:18.00, WRK:42.00,
-  PKG:195.00, SEE:32.00, AVY:185.00, IP:48.00, WY:28.00,
-  RHI:62.00, ROL:42.00, RSG:200.00, WM:210.00, CTAS:195.00,
+  CAT:680.00, BA:244.71, HON:238.00, UNP:252.62, UPS:116.86,
+  RTX:198.49, DE:583.11, LMT:637.89, GD:360.07, NOC:709.11, LHX:349.66,
+  GE:320.60, MMM:172.65, ITW:288.80, EMR:150.94, ETN:373.82,
+  PH:976.49, ROK:415.02, DOV:223.66, IR:98.94, OTIS:89.30,
+  CARR:55.55, TT:454.76, A_O:78.98, SWK:89.41, SNA:368.14,
+  FAST:47.14, PCAR:125.59, DAL:75.05, UAL:116.20, LUV:53.32, ALK:50.83,
+  CSX:40.47, NSC:306.48, JBHT:225.26, CHRW:200.59, EXPD:164.92, ODFL:208.40,
+  FDX:364.60, URI:899.55, WAB:246.32, GWW:1097.17, TDG:1280.00,
+  ROP:362.42, AME:231.91, IEX:211.31, GNRC:183.53, TDY:647.56,
+  PWR:508.11, TRMB:66.14, ALLE:179.75, FBHS:58.26, MAS:72.87,
+  NDSN:220.82, TYL:365.47, LDOS:188.26, J:150.54, IT:253.00,
+  BR:181.91, PAYC:130.97, PAYX:98.53, JKHY:167.55, CDAY:69.86,
+  FTV:59.42, HWM:223.16, TXT:95.47, DXC:13.50, WRK:0,
+  PKG:217.61, SEE:41.55, AVY:193.20, IP:47.50, WY:26.68,
+  RHI:31.40, ROL:64.71, RSG:223.98, WM:226.98, CTAS:195.17,
 
   // ── Energy ──
-  XOM:149.00, CVX:181.00, COP:105.00, EOG:120.00, SLB:42.00,
-  PXD:250.00, DVN:40.00, MRO:25.00, OXY:48.00, APA:22.00,
-  HAL:28.00, BKR:38.00, CTRA:28.00, MPC:158.00, VLO:135.00,
-  PSX:120.00, OKE:92.00, KMI:25.00, WMB:55.00, TRGP:165.00,
+  XOM:149.05, CVX:180.86, COP:107.62, EOG:112.49, SLB:50.70,
+  PXD:0, DVN:38.61, MRO:0, OXY:46.31, APA:27.51,
+  HAL:34.98, BKR:58.92, CTRA:30.66, MPC:203.00, VLO:201.68,
+  PSX:157.40, OKE:81.89, KMI:30.50, WMB:67.42, TRGP:203.64,
 
   // ── Utilities ──
-  NEE:72.00, DUK:108.00, SO:82.00, D:55.00, AEP:120.00, AEE:105.09,
-  AES:16.05, EXC:42.00, ED:95.00, WEC:92.00, CMS:62.00, ES:72.00,
-  DTE:120.00, ETR:130.00, XEL:62.00, EVRG:58.00, PNW:82.00,
-  NI:35.00, CNP:32.00, FE:42.00, PPL:32.00, LNT:55.00, PEG:88.00,
-  SRE:82.00, PCG:18.00, NRG:82.00, CEG:245.00, ATO:138.00,
+  NEE:89.31, DUK:121.86, SO:90.08, D:62.33, AEP:120.59, AEE:104.75,
+  AES:16.06, EXC:44.33, ED:107.34, WEC:113.33, CMS:71.60, ES:67.36,
+  DTE:134.38, ETR:96.83, XEL:75.90, EVRG:75.96, PNW:93.52,
+  NI:44.10, CNP:40.35, FE:46.55, PPL:34.78, LNT:66.70, PEG:80.65,
+  SRE:85.99, PCG:16.40, NRG:149.56, CEG:246.47, ATO:166.70,
 
   // ── Real Estate ──
-  PLD:115.00, AMT:177.00, CCI:92.00, EQIX:780.00, PSA:305.00,
-  DLR:155.00, O:55.00, SBAC:198.00, WELL:130.00, ARE:102.00,
-  EXR:155.00, ESS:275.00, MAA:150.00, UDR:40.00, CPT:105.00,
-  KIM:22.00, REG:70.00, FRT:105.00, SPG:162.00, VNO:28.00,
-  HST:17.50, BXP:72.00, VTR:58.00, PEAK:18.00, VICI:32.00,
-  IRM:92.00, INVH:33.00,
+  PLD:125.48, AMT:183.57, CCI:90.87, EQIX:848.12, PSA:288.89,
+  DLR:164.65, O:57.31, SBAC:192.48, WELL:195.92, ARE:55.90,
+  EXR:141.71, ESS:258.06, MAA:136.27, UDR:37.55, CPT:106.57,
+  KIM:20.90, REG:75.48, FRT:103.00, SPG:195.59, VNO:39.90,
+  HST:18.86, BXP:67.97, VTR:82.55, PEAK:17.76, VICI:28.53,
+  IRM:95.78, INVH:26.40,
 
   // ── Materials ──
-  LIN:390.00, APD:285.00, SHW:310.00, ECL:235.00, DD:72.00,
-  DOW:42.00, NUE:130.00, FCX:38.00, NEM:42.00, FMC:42.00,
-  CE:95.00, CF:82.00, ALB:82.00, MLM:520.00, VMC:265.00,
-  EMN:88.00, PPG:115.00, MOS:25.00, IFF:82.00, CTVA:52.00,
-  AMCR:9.50, BALL:55.00, WRK:42.00, LYB:78.00,
+  LIN:448.21, APD:286.30, SHW:361.98, ECL:288.18, DD:47.10,
+  DOW:31.78, NUE:187.06, FCX:60.67, NEM:120.76, FMC:14.76,
+  CE:54.88, CF:95.01, ALB:163.37, MLM:670.95, VMC:327.32,
+  EMN:78.49, PPG:124.81, MOS:27.31, IFF:71.21, CTVA:75.12,
+  AMCR:47.98, BALL:66.15, WRK:0, LYB:50.91,
 
   // ── Communication ──
-  TMUS:210.00, T:27.13, VZ:46.70, CMCSA:31.22, CHTR:310.00,
-  LUMN:5.50, AKAM:88.00, OMC:88.00, IPG:28.00, DIS:102.00,
+  TMUS:197.66, T:27.11, VZ:46.98, CMCSA:31.22, CHTR:234.06,
+  LUMN:8.06, AKAM:95.06, OMC:70.00, IPG:0, DIS:107.47,
 
   // ── Misc / Other ──
-  CDW:165.00, CSGP:62.00, CPRT:48.00, CTLT:42.00, CTSH:68.00,
-  MKTX:215.00, EPAM:175.00, EQT:42.00, EQR:68.00, FFIV:175.00,
-  GPN:95.00, JNPR:35.00, KEYS:145.00, KDP:32.00, SBNY:0, SIVB:0,
+  CDW:126.83, CSGP:64.65, CPRT:40.36, CTLT:0, CTSH:77.09,
+  MKTX:176.08, EPAM:185.40, EQT:56.79, EQR:63.89, FFIV:276.49,
+  JNPR:39.95, KEYS:230.95, IBM:298.93, SBNY:0, SIVB:0,
   FRC:0, ATVI:0
 };
 
 // Normalize BRK.B and BF.B (dot notation)
-REAL_PRICES["BRK.B"] = REAL_PRICES.BRK_B || 508.01;
-REAL_PRICES["BF.B"] = REAL_PRICES.BF_B || 52.00;
+REAL_PRICES["BRK.B"] = REAL_PRICES.BRK_B || 508.09;
+REAL_PRICES["BF.B"] = REAL_PRICES.BF_B || 32.06;
 
 // VIX real data (Feb 2026)
 var VIX_DATA = { current_vix: 16.50, vix_rsi2: 42.7, extreme_fear: false, lower_high_confirmed: false, regime: "normal" };
@@ -519,6 +525,129 @@ function tickerSeed(ticker) {
 
 function getRealPrice(ticker) {
   return REAL_PRICES[ticker] || null;
+}
+
+// ── Tiered Price Refresh System ──────────────────────────────────────────────
+// Divides all tickers into 5 tiers of ~100 each.
+// Refreshes one tier every 60 seconds → full cycle every 5 minutes.
+// In demo mode: simulates realistic micro price drift.
+// In production: fetches from /api/v1/prices/tier/{n}.
+
+var PRICE_TIERS = { NUM_TIERS: 5, INTERVAL_MS: 60000, currentTier: 0 };
+var TIER_ASSIGNMENTS = {};    // ticker -> tier index
+var TIER_LISTS = [[], [], [], [], []];
+var TIER_STATUS = [];         // { tier, lastRefreshed, refreshCount }
+var LIVE_PRICES = {};         // ticker -> { price, prevClose, change, changePct, updatedAt }
+
+(function buildTiers() {
+  var tickers = Object.keys(REAL_PRICES);
+  var tierSize = Math.ceil(tickers.length / PRICE_TIERS.NUM_TIERS);
+  for (var i = 0; i < tickers.length; i++) {
+    var tier = Math.floor(i / tierSize);
+    if (tier >= PRICE_TIERS.NUM_TIERS) tier = PRICE_TIERS.NUM_TIERS - 1;
+    TIER_ASSIGNMENTS[tickers[i]] = tier;
+    TIER_LISTS[tier].push(tickers[i]);
+  }
+  for (var t = 0; t < PRICE_TIERS.NUM_TIERS; t++) {
+    TIER_STATUS.push({ tier: t, tickerCount: TIER_LISTS[t].length, lastRefreshed: null, refreshCount: 0 });
+  }
+  // Initialize LIVE_PRICES from REAL_PRICES
+  for (var tk in REAL_PRICES) {
+    if (REAL_PRICES[tk] > 0) {
+      LIVE_PRICES[tk] = {
+        price: REAL_PRICES[tk], prevClose: REAL_PRICES[tk], change: 0, changePct: 0,
+        updatedAt: new Date().toISOString(), tier: TIER_ASSIGNMENTS[tk] || 0
+      };
+    }
+  }
+})();
+
+function refreshTierPrices(tier) {
+  var tickers = TIER_LISTS[tier];
+  if (!tickers || tickers.length === 0) return;
+  var now = new Date();
+  // Simulate realistic micro price drift (Brownian motion)
+  // In production, replace this with: fetch("/api/v1/prices/tier/" + tier)
+  for (var i = 0; i < tickers.length; i++) {
+    var tk = tickers[i];
+    var base = REAL_PRICES[tk] || 100;
+    var prev = LIVE_PRICES[tk] ? LIVE_PRICES[tk].price : base;
+    // Random walk: mean=0, stddev proportional to price (0.15% per tick)
+    var drift = prev * (Math.random() - 0.498) * 0.003;
+    // Mean-revert toward base price (prevents runaway drift)
+    var reversion = (base - prev) * 0.02;
+    var newPrice = Math.max(prev + drift + reversion, 0.01);
+    newPrice = Math.round(newPrice * 100) / 100;
+    var change = newPrice - base;
+    var changePct = base > 0 ? Math.round((change / base) * 10000) / 100 : 0;
+    LIVE_PRICES[tk] = {
+      price: newPrice, prevClose: base, change: Math.round(change * 100) / 100,
+      changePct: changePct, updatedAt: now.toISOString(), tier: tier
+    };
+    // Update REAL_PRICES so downstream code picks up the new price
+    REAL_PRICES[tk] = newPrice;
+  }
+  TIER_STATUS[tier].lastRefreshed = now.toISOString();
+  TIER_STATUS[tier].refreshCount++;
+}
+
+function startTieredPriceRefresh() {
+  // Render the initial status bar
+  renderPriceRefreshStatus();
+  // Refresh one tier every 60 seconds
+  setInterval(function() {
+    var tier = PRICE_TIERS.currentTier;
+    refreshTierPrices(tier);
+    PRICE_TIERS.currentTier = (tier + 1) % PRICE_TIERS.NUM_TIERS;
+    // Update signal prices in the grid
+    updateSignalPrices();
+    renderPriceRefreshStatus();
+  }, PRICE_TIERS.INTERVAL_MS);
+}
+
+function updateSignalPrices() {
+  // Update signal array with latest live prices
+  for (var i = 0; i < state.signals.length; i++) {
+    var s = state.signals[i];
+    if (LIVE_PRICES[s.ticker]) {
+      s.price = LIVE_PRICES[s.ticker].price;
+    }
+  }
+  // Re-render only the price cells (not the full grid) for performance
+  var rows = document.querySelectorAll("#signalBody tr");
+  for (var i = 0; i < rows.length; i++) {
+    var ticker = rows[i].getAttribute("data-ticker");
+    if (ticker && LIVE_PRICES[ticker]) {
+      var priceCell = rows[i].querySelectorAll("td")[2]; // 3rd column is price
+      if (priceCell) {
+        var lp = LIVE_PRICES[ticker];
+        var changeClass = lp.changePct > 0 ? "c-green" : lp.changePct < 0 ? "c-red" : "";
+        var changeSign = lp.changePct >= 0 ? "+" : "";
+        priceCell.innerHTML = '<span class="mono">$' + lp.price.toFixed(2) +
+          '</span> <span class="mono ' + changeClass + '" style="font-size:10px">' +
+          changeSign + lp.changePct.toFixed(2) + '%</span>';
+      }
+    }
+  }
+}
+
+function renderPriceRefreshStatus() {
+  var el = document.getElementById("priceRefreshStatus");
+  if (!el) return;
+  var next = PRICE_TIERS.currentTier;
+  var lastDone = (next + PRICE_TIERS.NUM_TIERS - 1) % PRICE_TIERS.NUM_TIERS;
+  var dots = "";
+  for (var t = 0; t < PRICE_TIERS.NUM_TIERS; t++) {
+    var cls = t === lastDone ? "tier-dot tier-done" :
+              t === next ? "tier-dot tier-next" : "tier-dot";
+    dots += '<span class="' + cls + '" title="Tier ' + t + ' (' + TIER_LISTS[t].length +
+            ' tickers) - ' + (TIER_STATUS[t].lastRefreshed ?
+            'Last: ' + new Date(TIER_STATUS[t].lastRefreshed).toLocaleTimeString() : 'Pending') +
+            '">' + (t + 1) + '</span>';
+  }
+  var cached = Object.keys(LIVE_PRICES).length;
+  el.innerHTML = '<span class="mono" style="font-size:10px;color:#6b7280">Prices: </span>' + dots +
+    '<span class="mono" style="font-size:10px;color:#4b5563;margin-left:4px">' + cached + ' tickers</span>';
 }
 
 // Time horizon configs: { label, bars, barIntervalMs }
@@ -1002,6 +1131,7 @@ function init() {
   setupNotifications();
   setupCSVExport();
   renderPortfolio();
+  startTieredPriceRefresh();
   setInterval(function() {
     document.getElementById("headerTime").textContent = new Date().toLocaleTimeString();
   }, 1000);
