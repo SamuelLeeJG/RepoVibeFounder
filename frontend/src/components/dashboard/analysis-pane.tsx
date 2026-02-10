@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+// analysis-pane.tsx
 import {
   Area,
   Bar,
@@ -28,20 +28,31 @@ interface AnalysisPaneProps {
 }
 
 const TIMEFRAMES = [
-  { value: "1Hour", label: "H" },
-  { value: "1Day", label: "D" },
+  { value: "1Hour", label: "1W", bars: 35 },
+  { value: "1Day", label: "1M", bars: 22 },
+  { value: "1Day_3M", label: "3M", bars: 65 },
+  { value: "1Day_6M", label: "6M", bars: 130 },
+  { value: "1Day_1Y", label: "1Y", bars: 252 },
 ];
 
 function formatTimeLabel(timestamp: string, timeframe: string): string {
-  if (timeframe === "1Day") {
-    return timestamp.slice(5, 10); // MM-DD
+  if (!timestamp) return "";
+  try {
+    const d = new Date(timestamp);
+    const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    if (timeframe === "1Hour") {
+      return `${mon[d.getMonth()]} ${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:00`;
+    }
+    if (timeframe.includes("1Y") || timeframe.includes("6M")) {
+      return `${mon[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`;
+    }
+    return `${mon[d.getMonth()]} ${d.getDate()}`;
+  } catch {
+    return timestamp.slice(5, 10);
   }
-  return timestamp.slice(5, 16).replace("T", " "); // MM-DD HH:MM
 }
 
-export function AnalysisPane({ data, ticker, loading, timeframe = "1Hour", onTimeframeChange }: AnalysisPaneProps) {
-  const [brushRange, setBrushRange] = useState<[number, number] | null>(null);
-
+export function AnalysisPane({ data, ticker, loading, timeframe = "1Day_6M", onTimeframeChange }: AnalysisPaneProps) {
   if (loading) {
     return (
       <Card className="h-full flex items-center justify-center">
@@ -70,13 +81,13 @@ export function AnalysisPane({ data, ticker, loading, timeframe = "1Hour", onTim
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-mono">{ticker} Analysis</CardTitle>
-          {/* Timeframe Toggle */}
+          {/* Time Horizon Selector */}
           <div className="flex items-center gap-1">
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf.value}
                 onClick={() => onTimeframeChange?.(tf.value)}
-                className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
                   timeframe === tf.value
                     ? "bg-emerald-600 text-white"
                     : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
@@ -85,7 +96,6 @@ export function AnalysisPane({ data, ticker, loading, timeframe = "1Hour", onTim
                 {tf.label}
               </button>
             ))}
-            <span className="text-xs text-zinc-500 ml-2">per {timeLabel}</span>
           </div>
         </div>
       </CardHeader>

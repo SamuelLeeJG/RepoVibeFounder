@@ -100,8 +100,21 @@ export function useChartData(ticker: string | null, timeframe = "1Hour", bars = 
     if (!ticker) { setData([]); return; }
     let cancelled = false;
     setLoading(true);
+    // Parse compound timeframes like "1Day_3M" -> timeframe=1Day, bars=65
+    let apiTimeframe = timeframe;
+    let apiBars = bars;
+    if (timeframe.includes("_")) {
+      const parts = timeframe.split("_");
+      apiTimeframe = parts[0];
+      const horizonMap: Record<string, number> = { "3M": 65, "6M": 130, "1Y": 252 };
+      apiBars = horizonMap[parts[1]] ?? bars;
+    } else if (timeframe === "1Hour") {
+      apiBars = 35; // 1 week of hourly bars
+    } else if (timeframe === "1Day") {
+      apiBars = 22; // 1 month
+    }
     apiFetch<{ bars: ChartBar[] }>(
-      `/api/v1/chart-data/${ticker}/multi?timeframe=${timeframe}&bars=${bars}`
+      `/api/v1/chart-data/${ticker}/multi?timeframe=${apiTimeframe}&bars=${apiBars}`
     )
       .then((res) => { if (!cancelled) setData(res.bars); })
       .catch(() => { if (!cancelled) setData([]); })

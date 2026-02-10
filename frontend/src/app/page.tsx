@@ -19,7 +19,7 @@ import {
 export default function Dashboard() {
   const { user, loading: authLoading, login, register, requestAccess, resetPassword, logout } = useAuth();
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
-  const [timeframe, setTimeframe] = useState("1Hour");
+  const [timeframe, setTimeframe] = useState("1Day_6M");
   const [search, setSearch] = useState<string | undefined>();
   const [sectorFilter, setSectorFilter] = useState<string | undefined>();
   const [sortBy, setSortBy] = useState("probability_score");

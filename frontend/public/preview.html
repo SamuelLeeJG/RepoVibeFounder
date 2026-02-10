@@ -249,12 +249,19 @@ header h1 span{color:#71717a}
         <!-- Analysis Chart Card -->
         <div class="card" id="analysisCard">
           <div class="card-header">
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-4" style="flex-wrap:wrap">
               <span class="font-semibold mono" id="analysisTicker">Select a ticker</span>
               <div class="tab-bar" id="chartTabs">
                 <button class="tab-btn active" data-chart="price">Price + Signals</button>
                 <button class="tab-btn" data-chart="rsi">RSI 5/9/14</button>
                 <button class="tab-btn" data-chart="macd">MACD Z-Score</button>
+              </div>
+              <div class="tab-bar" id="horizonBar">
+                <button class="filter-btn" data-horizon="1W">1W</button>
+                <button class="filter-btn" data-horizon="1M">1M</button>
+                <button class="filter-btn" data-horizon="3M">3M</button>
+                <button class="filter-btn active" data-horizon="6M">6M</button>
+                <button class="filter-btn" data-horizon="1Y">1Y</button>
               </div>
               <div class="arrow-legend" id="arrowLegend"></div>
             </div>
@@ -514,17 +521,59 @@ function getRealPrice(ticker) {
   return REAL_PRICES[ticker] || null;
 }
 
+// Time horizon configs: { label, bars, barIntervalMs }
+var TIME_HORIZONS = {
+  "1W":  { label: "1W",  bars: 35,  barMs: 3600000 * 4 },   // ~5 trading days x 7 bars/day (4h bars)
+  "1M":  { label: "1M",  bars: 22,  barMs: 86400000 },       // ~22 trading days (daily)
+  "3M":  { label: "3M",  bars: 65,  barMs: 86400000 },       // ~65 trading days (daily)
+  "6M":  { label: "6M",  bars: 130, barMs: 86400000 },       // ~130 trading days (daily)
+  "1Y":  { label: "1Y",  bars: 252, barMs: 86400000 },       // ~252 trading days (daily)
+};
+
+function generateTimestamps(n, barMs) {
+  // End date: Feb 10, 2026 16:00 ET (market close)
+  var end = new Date(2026, 1, 10, 16, 0, 0).getTime();
+  var timestamps = [];
+  for (var i = n - 1; i >= 0; i--) {
+    var t = new Date(end - i * barMs);
+    // Skip weekends for daily bars
+    if (barMs >= 86400000) {
+      while (t.getDay() === 0 || t.getDay() === 6) {
+        t = new Date(t.getTime() - 86400000);
+      }
+    }
+    timestamps.push(t);
+  }
+  return timestamps;
+}
+
+function formatDateLabel(d, horizon) {
+  var mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  if (horizon === "1W") {
+    return mon[d.getMonth()] + " " + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":00";
+  }
+  if (horizon === "1Y" || horizon === "6M") {
+    return mon[d.getMonth()] + " '" + String(d.getFullYear()).slice(2);
+  }
+  return mon[d.getMonth()] + " " + d.getDate();
+}
+
+function formatTooltipDate(d, horizon) {
+  var mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  if (horizon === "1W") {
+    return mon[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear() + " " +
+      String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  }
+  return mon[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+}
+
 function generatePriceData(ticker, n) {
   n = n || 300;
   var rng = seededRandom(tickerSeed(ticker));
   var realPrice = getRealPrice(ticker);
-  // If we have a real price, generate history that converges to it
-  // If not, use a reasonable estimate based on ticker hash
   var targetPrice = realPrice || (50 + (tickerSeed(ticker) % 400));
-  // Start price ~15-25% away from target (simulating 1yr of movement)
-  var startOffset = 0.85 + rng() * 0.30; // 0.85 to 1.15
+  var startOffset = 0.85 + rng() * 0.30;
   var price = targetPrice * startOffset;
-  // Calculate drift needed to reach target price over n bars
   var totalReturn = targetPrice / price;
   var dailyDrift = Math.pow(totalReturn, 1/n) - 1;
   var data = [];
@@ -532,7 +581,6 @@ function generatePriceData(ticker, n) {
     var noise = (rng() - 0.5) * 0.03;
     var ret = dailyDrift + noise;
     price *= (1 + ret);
-    // On last bar, snap to real price
     if (i === n - 1 && realPrice) price = realPrice;
     var h = price * (1 + rng() * 0.012);
     var l = price * (1 - rng() * 0.012);
@@ -687,8 +735,14 @@ function generateThesis(ticker) {
   var pctVsSma = ((closes[last] - sma200) / sma200 * 100);
   var playType = pctVsSma < -2 ? "Mean Reversion" : pctVsSma > 2 ? "Trend Following" : "Range Bound";
 
-  var chartData = data.slice(-200).map(function(d, idx) {
-    var gi = data.length - 200 + idx;
+  // Generate timestamps for chart (use current horizon)
+  var horizon = state.horizon || "6M";
+  var hCfg = TIME_HORIZONS[horizon];
+  var chartBars = Math.min(hCfg.bars, data.length);
+  var timestamps = generateTimestamps(chartBars, hCfg.barMs);
+
+  var chartData = data.slice(-chartBars).map(function(d, idx) {
+    var gi = data.length - chartBars + idx;
     var cz = macd.zscores[gi] || 0;
     var cr5 = rsi5[gi] || null;
     var cr9 = rsi9[gi] || null;
@@ -706,7 +760,8 @@ function generateThesis(ticker) {
     if (cz > 2.0) sellArrow = d.close;
 
     return {
-      time: idx, close: +d.close.toFixed(2), high: +d.high.toFixed(2), low: +d.low.toFixed(2),
+      time: idx, date: timestamps[idx], dateLabel: formatDateLabel(timestamps[idx], horizon),
+      close: +d.close.toFixed(2), high: +d.high.toFixed(2), low: +d.low.toFixed(2),
       bb_lower: cbb ? +cbb.toFixed(2) : null,
       rsi_5: cr5 ? +cr5.toFixed(2) : null,
       rsi_9: cr9 ? +cr9.toFixed(2) : null,
@@ -928,7 +983,8 @@ var state = {
   sortField: "probability_score",
   sortDir: "desc",
   notifications: [],
-  notifOpen: false
+  notifOpen: false,
+  horizon: "6M"
 };
 
 function init() {
@@ -942,6 +998,7 @@ function init() {
   setupFilterListeners();
   setupChartTabListeners();
   setupSearchAndSort();
+  setupHorizonSelector();
   setupNotifications();
   setupCSVExport();
   renderPortfolio();
@@ -1062,13 +1119,31 @@ function selectTicker(ticker) {
   renderThesisCard();
 }
 
+function setupHorizonSelector() {
+  var btns = document.querySelectorAll("#horizonBar .filter-btn");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function() {
+      state.horizon = this.getAttribute("data-horizon");
+      var siblings = this.parentElement.querySelectorAll(".filter-btn");
+      for (var j = 0; j < siblings.length; j++) siblings[j].classList.remove("active");
+      this.classList.add("active");
+      // Regenerate thesis chart data with new horizon
+      if (state.selectedTicker) {
+        state.thesis = generateThesis(state.selectedTicker);
+        renderChart();
+      }
+    });
+  }
+}
+
 // ── Chart Rendering ─────────────────────────────────────────────────────────
 
 function renderChart() {
   var thesis = state.thesis;
   if (!thesis) return;
   document.getElementById("emptyChart").style.display = "none";
-  document.getElementById("analysisTicker").textContent = thesis.ticker + " Analysis";
+  var hLabel = state.horizon || "6M";
+  document.getElementById("analysisTicker").textContent = thesis.ticker + " \u00b7 " + hLabel;
   var container = document.getElementById("chartArea");
   var canvas = document.getElementById("chartCanvas");
   var setup = setupCanvas(canvas, container);
@@ -1076,7 +1151,7 @@ function renderChart() {
   var data = thesis.chartData;
   var tab = state.chartTab;
   ctx.clearRect(0, 0, w, h);
-  var xLabels = data.map(function(d){ return String(d.time); });
+  var xLabels = data.map(function(d){ return d.dateLabel || String(d.time); });
   if (tab === "price") renderPriceChart(ctx, data, xLabels, w, h);
   else if (tab === "rsi") renderRSIChart(ctx, data, xLabels, w, h);
   else if (tab === "macd") renderMACDChart(ctx, data, xLabels, w, h);
@@ -1164,7 +1239,8 @@ function setupTooltip(canvas, container, data, w, h, tab) {
     var idx = Math.round((mx - p.left) / cw * (data.length - 1));
     idx = Math.max(0, Math.min(data.length - 1, idx));
     var d = data[idx];
-    var html = '<div class="mono" style="margin-bottom:4px;color:#a1a1aa">Bar ' + d.time + '</div>';
+    var dateStr = d.date ? formatTooltipDate(d.date, state.horizon || "6M") : "Bar " + d.time;
+    var html = '<div class="mono" style="margin-bottom:4px;color:#a1a1aa">' + dateStr + '</div>';
     if (tab === "price") {
       html += '<div>Close: <span class="font-bold">$' + d.close.toFixed(2) + '</span></div>';
       if (d.bb_lower !== null) html += '<div style="color:#60a5fa">BB Lower: $' + d.bb_lower.toFixed(2) + '</div>';
